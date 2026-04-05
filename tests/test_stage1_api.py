@@ -35,6 +35,16 @@ def test_node_info_endpoint():
     assert response.get_json()["instance_name"] == "local-node"
 
 
+def test_homepage_renders_gui():
+    client = make_client()
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert b"Distributed URL Shortener" in response.data
+    assert b"Create Short URL" in response.data
+
+
 def test_create_short_url_and_redirect_updates_analytics():
     client = make_client()
 

@@ -27,6 +27,13 @@ python run.py
 
 This creates or reuses a SQLite database at `data/url_shortener.db`.
 
+Once the server is running, open `http://127.0.0.1:5000/` in a browser to use the minimal GUI. The interface lets you:
+
+- create short URLs without using `curl`
+- view the current backend instance name and database path
+- inspect all stored mappings and their click counts
+- open generated short links directly from the page
+
 To verify persistence manually:
 
 1. Start the server with `python run.py`
@@ -87,6 +94,8 @@ docker compose up --build
 The load balancer is exposed at `http://127.0.0.1:8080`.
 
 If Docker is not already running, start Docker Desktop first. `docker compose` will fail if the local Docker daemon is unavailable.
+
+Once the stack is running, open `http://127.0.0.1:8080/` to use the same GUI through nginx. Refreshing the page or the dashboard data is a quick way to observe which backend node served the request.
 
 ### Stage 3 Quick Checks
 

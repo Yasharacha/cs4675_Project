@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from http import HTTPStatus
 
-from flask import Blueprint, current_app, jsonify, redirect, request
+from flask import Blueprint, current_app, jsonify, redirect, render_template, request
 
 from .service import ExpiredUrlError, InvalidUrlError, UnknownCodeError, UrlShortenerService
 
@@ -11,6 +11,12 @@ api = Blueprint("api", __name__)
 
 def get_service() -> UrlShortenerService:
     return current_app.extensions["url_service"]
+
+
+@api.get("/")
+@api.get("/ui")
+def index():
+    return render_template("index.html"), HTTPStatus.OK
 
 
 @api.get("/health")
