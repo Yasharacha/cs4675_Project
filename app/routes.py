@@ -34,6 +34,17 @@ def create_short_url():
     return jsonify(response), HTTPStatus.CREATED
 
 
+@api.get("/api/v1/urls")
+def list_urls():
+    mappings = get_service().list_urls()
+    response = []
+    for mapping in mappings:
+        payload = get_service().serialize(mapping)
+        payload["short_url"] = request.host_url.rstrip("/") + f"/{mapping.code}"
+        response.append(payload)
+    return jsonify(response), HTTPStatus.OK
+
+
 @api.get("/api/v1/urls/<code>")
 def get_url_details(code: str):
     try:

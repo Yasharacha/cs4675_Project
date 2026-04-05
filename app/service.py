@@ -57,6 +57,9 @@ class UrlShortenerService:
             raise UnknownCodeError(code)
         return mapping
 
+    def list_urls(self) -> list[UrlMapping]:
+        return self.repository.list_all()
+
     def serialize(self, mapping: UrlMapping) -> dict[str, object]:
         payload = asdict(mapping)
         payload["created_at"] = mapping.created_at.isoformat() + "Z"

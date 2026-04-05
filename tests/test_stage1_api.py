@@ -1,10 +1,24 @@
+from pathlib import Path
+from uuid import uuid4
+
 from app import create_app
 
 
-def test_healthcheck():
-    app = create_app()
-    client = app.test_client()
+TEST_DB_DIR = Path("test_data")
+TEST_DB_DIR.mkdir(exist_ok=True)
 
+
+def make_database_path() -> str:
+    return str(TEST_DB_DIR / f"{uuid4().hex}.db")
+
+
+def make_client(database_path: str | None = None):
+    app = create_app({"DATABASE_PATH": database_path or make_database_path()})
+    return app.test_client()
+
+
+def test_healthcheck():
+    client = make_client()
     response = client.get("/health")
 
     assert response.status_code == 200
@@ -12,8 +26,7 @@ def test_healthcheck():
 
 
 def test_create_short_url_and_redirect_updates_analytics():
-    app = create_app()
-    client = app.test_client()
+    client = make_client()
 
     create_response = client.post(
         "/api/v1/urls",
@@ -38,9 +51,44 @@ def test_create_short_url_and_redirect_updates_analytics():
     assert details_payload["last_accessed_at"] is not None
 
 
+def test_list_urls_returns_all_saved_mappings():
+    client = make_client()
+
+    client.post("/api/v1/urls", json={"url": "https://example.com/one", "expires_in_days": 7})
+    client.post("/api/v1/urls", json={"url": "https://example.com/two"})
+
+    response = client.get("/api/v1/urls")
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert len(payload) == 2
+    assert payload[0]["long_url"] == "https://example.com/one"
+    assert payload[1]["long_url"] == "https://example.com/two"
+    assert payload[0]["short_url"].endswith(f"/{payload[0]['code']}")
+    assert payload[1]["short_url"].endswith(f"/{payload[1]['code']}")
+
+
+def test_persists_data_across_app_restarts():
+    database_path = make_database_path()
+
+    first_app = create_app({"DATABASE_PATH": database_path})
+    first_client = first_app.test_client()
+    create_response = first_client.post(
+        "/api/v1/urls",
+        json={"url": "https://example.com/persisted", "expires_in_days": 3},
+    )
+    code = create_response.get_json()["code"]
+
+    second_app = create_app({"DATABASE_PATH": database_path})
+    second_client = second_app.test_client()
+    details_response = second_client.get(f"/api/v1/urls/{code}")
+
+    assert details_response.status_code == 200
+    assert details_response.get_json()["long_url"] == "https://example.com/persisted"
+
+
 def test_invalid_url_rejected():
-    app = create_app()
-    client = app.test_client()
+    client = make_client()
 
     response = client.post("/api/v1/urls", json={"url": "not-a-url"})
 
@@ -49,8 +97,7 @@ def test_invalid_url_rejected():
 
 
 def test_unknown_code_returns_404():
-    app = create_app()
-    client = app.test_client()
+    client = make_client()
 
     response = client.get("/missing")
 
@@ -58,8 +105,7 @@ def test_unknown_code_returns_404():
 
 
 def test_expired_code_returns_410():
-    app = create_app()
-    client = app.test_client()
+    client = make_client()
 
     create_response = client.post(
         "/api/v1/urls",
