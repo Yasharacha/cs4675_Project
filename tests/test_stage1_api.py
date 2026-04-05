@@ -23,6 +23,16 @@ def test_healthcheck():
 
     assert response.status_code == 200
     assert response.get_json() == {"status": "ok"}
+    assert response.headers["X-Backend-Node"] == "local-node"
+
+
+def test_node_info_endpoint():
+    client = make_client()
+
+    response = client.get("/api/v1/node")
+
+    assert response.status_code == 200
+    assert response.get_json()["instance_name"] == "local-node"
 
 
 def test_create_short_url_and_redirect_updates_analytics():

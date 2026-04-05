@@ -1,0 +1,7 @@
+.git
+__pycache__/
+*.pyc
+.pytest_cache/
+test_data/
+data/
+Group12_URLShortener.pdf

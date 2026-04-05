@@ -18,6 +18,19 @@ def healthcheck():
     return jsonify({"status": "ok"}), HTTPStatus.OK
 
 
+@api.get("/api/v1/node")
+def get_node_info():
+    return (
+        jsonify(
+            {
+                "instance_name": current_app.config["INSTANCE_NAME"],
+                "database_path": current_app.config["DATABASE_PATH"],
+            }
+        ),
+        HTTPStatus.OK,
+    )
+
+
 @api.post("/api/v1/urls")
 def create_short_url():
     payload = request.get_json(silent=True) or {}
