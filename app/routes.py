@@ -1,0 +1,56 @@
+from __future__ import annotations
+
+from http import HTTPStatus
+
+from flask import Blueprint, current_app, jsonify, redirect, request
+
+from .service import ExpiredUrlError, InvalidUrlError, UnknownCodeError, UrlShortenerService
+
+api = Blueprint("api", __name__)
+
+
+def get_service() -> UrlShortenerService:
+    return current_app.extensions["url_service"]
+
+
+@api.get("/health")
+def healthcheck():
+    return jsonify({"status": "ok"}), HTTPStatus.OK
+
+
+@api.post("/api/v1/urls")
+def create_short_url():
+    payload = request.get_json(silent=True) or {}
+    long_url = payload.get("url", "")
+    expires_in_days = payload.get("expires_in_days")
+
+    try:
+        mapping = get_service().create_short_url(long_url=long_url, expires_in_days=expires_in_days)
+    except InvalidUrlError as exc:
+        return jsonify({"error": str(exc)}), HTTPStatus.BAD_REQUEST
+
+    response = get_service().serialize(mapping)
+    response["short_url"] = request.host_url.rstrip("/") + f"/{mapping.code}"
+    return jsonify(response), HTTPStatus.CREATED
+
+
+@api.get("/api/v1/urls/<code>")
+def get_url_details(code: str):
+    try:
+        mapping = get_service().lookup(code)
+    except UnknownCodeError:
+        return jsonify({"error": "Short code not found."}), HTTPStatus.NOT_FOUND
+
+    return jsonify(get_service().serialize(mapping)), HTTPStatus.OK
+
+
+@api.get("/<code>")
+def redirect_short_url(code: str):
+    try:
+        mapping = get_service().resolve(code)
+    except UnknownCodeError:
+        return jsonify({"error": "Short code not found."}), HTTPStatus.NOT_FOUND
+    except ExpiredUrlError:
+        return jsonify({"error": "Short code has expired."}), HTTPStatus.GONE
+
+    return redirect(mapping.long_url, code=HTTPStatus.FOUND)
