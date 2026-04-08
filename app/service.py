@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
 
 from .models import UrlMapping
-from .storage import InMemoryUrlRepository
+from .storage import UrlRepository
 
 BASE62_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
@@ -23,14 +23,20 @@ class UnknownCodeError(KeyError):
 
 
 class UrlShortenerService:
-    def __init__(self, repository: InMemoryUrlRepository) -> None:
+    def __init__(self, repository: UrlRepository) -> None:
         self.repository = repository
 
-    def create_short_url(self, long_url: str, expires_in_days: int | None = None) -> UrlMapping:
+    def create_short_url(
+        self, long_url: str, expires_in_days: int | None = None
+    ) -> UrlMapping:
         normalized_url = self._validate_url(long_url)
         code = self._encode_base62(self.repository.next_id())
         now = datetime.now(UTC)
-        expires_at = now + timedelta(days=expires_in_days) if expires_in_days is not None else None
+        expires_at = (
+            now + timedelta(days=expires_in_days)
+            if expires_in_days is not None
+            else None
+        )
         mapping = UrlMapping(
             code=code,
             long_url=normalized_url,
@@ -63,9 +69,13 @@ class UrlShortenerService:
     def serialize(self, mapping: UrlMapping) -> dict[str, object]:
         payload = asdict(mapping)
         payload["created_at"] = mapping.created_at.isoformat() + "Z"
-        payload["expires_at"] = mapping.expires_at.isoformat() + "Z" if mapping.expires_at else None
+        payload["expires_at"] = (
+            mapping.expires_at.isoformat() + "Z" if mapping.expires_at else None
+        )
         payload["last_accessed_at"] = (
-            mapping.last_accessed_at.isoformat() + "Z" if mapping.last_accessed_at else None
+            mapping.last_accessed_at.isoformat() + "Z"
+            if mapping.last_accessed_at
+            else None
         )
         payload["is_expired"] = mapping.is_expired
         return payload
@@ -73,7 +83,9 @@ class UrlShortenerService:
     def _validate_url(self, url: str) -> str:
         parsed = urlparse(url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            raise InvalidUrlError("URL must include an http or https scheme and a valid host.")
+            raise InvalidUrlError(
+                "URL must include an http or https scheme and a valid host."
+            )
         return url
 
     def _encode_base62(self, value: int) -> str:

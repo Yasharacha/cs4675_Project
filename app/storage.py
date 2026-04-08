@@ -3,8 +3,19 @@ from __future__ import annotations
 import sqlite3
 from threading import Lock
 from pathlib import Path
+from typing import Protocol
 
 from .models import UrlMapping
+
+
+class UrlRepository(Protocol):
+    def next_id(self) -> int: ...
+
+    def save(self, mapping: UrlMapping) -> UrlMapping: ...
+
+    def get(self, code: str) -> UrlMapping | None: ...
+
+    def list_all(self) -> list[UrlMapping]: ...
 
 
 class InMemoryUrlRepository:
@@ -39,7 +50,9 @@ class SQLiteUrlRepository:
         self._initialize()
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self.database_path, detect_types=sqlite3.PARSE_DECLTYPES)
+        connection = sqlite3.connect(
+            self.database_path, detect_types=sqlite3.PARSE_DECLTYPES
+        )
         connection.row_factory = sqlite3.Row
         return connection
 
@@ -74,6 +87,8 @@ class SQLiteUrlRepository:
                 (None, "__pending__", "__pending__"),
             )
             connection.commit()
+            if cursor.lastrowid is None:
+                raise RuntimeError("Could not generate next ID")
             return int(cursor.lastrowid)
 
     def save(self, mapping: UrlMapping) -> UrlMapping:
@@ -95,7 +110,11 @@ class SQLiteUrlRepository:
                     mapping.created_at.isoformat(),
                     mapping.expires_at.isoformat() if mapping.expires_at else None,
                     mapping.click_count,
-                    mapping.last_accessed_at.isoformat() if mapping.last_accessed_at else None,
+                    (
+                        mapping.last_accessed_at.isoformat()
+                        if mapping.last_accessed_at
+                        else None
+                    ),
                     mapping.code,
                     self._decode_base62(mapping.code),
                 ),
@@ -121,9 +140,15 @@ class SQLiteUrlRepository:
             code=row["code"],
             long_url=row["long_url"],
             created_at=self._parse_datetime(row["created_at"]),
-            expires_at=self._parse_datetime(row["expires_at"]) if row["expires_at"] else None,
+            expires_at=(
+                self._parse_datetime(row["expires_at"]) if row["expires_at"] else None
+            ),
             click_count=row["click_count"],
-            last_accessed_at=self._parse_datetime(row["last_accessed_at"]) if row["last_accessed_at"] else None,
+            last_accessed_at=(
+                self._parse_datetime(row["last_accessed_at"])
+                if row["last_accessed_at"]
+                else None
+            ),
         )
 
     def list_all(self) -> list[UrlMapping]:
@@ -142,9 +167,17 @@ class SQLiteUrlRepository:
                 code=row["code"],
                 long_url=row["long_url"],
                 created_at=self._parse_datetime(row["created_at"]),
-                expires_at=self._parse_datetime(row["expires_at"]) if row["expires_at"] else None,
+                expires_at=(
+                    self._parse_datetime(row["expires_at"])
+                    if row["expires_at"]
+                    else None
+                ),
                 click_count=row["click_count"],
-                last_accessed_at=self._parse_datetime(row["last_accessed_at"]) if row["last_accessed_at"] else None,
+                last_accessed_at=(
+                    self._parse_datetime(row["last_accessed_at"])
+                    if row["last_accessed_at"]
+                    else None
+                ),
             )
             for row in rows
         ]
