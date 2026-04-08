@@ -1,5 +1,6 @@
 import os
 
+from dotenv import load_dotenv
 from flask import Flask
 
 from .routes import api
@@ -8,6 +9,7 @@ from .storage import SQLiteUrlRepository
 
 
 def create_app(test_config: dict | None = None) -> Flask:
+    load_dotenv()
     app = Flask(__name__)
     app.config["SERVER_NAME"] = None
     app.config["DATABASE_PATH"] = os.getenv("DATABASE_PATH", "data/url_shortener.db")
