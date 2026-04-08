@@ -4,3 +4,4 @@ __pycache__/
 *.db
 test_data/
 .venv/
+.env

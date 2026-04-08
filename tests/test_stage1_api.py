@@ -4,21 +4,17 @@ from uuid import uuid4
 from app import create_app
 
 
-TEST_DB_DIR = Path("test_data")
-TEST_DB_DIR.mkdir(exist_ok=True)
+def make_database_path(base_dir: Path) -> str:
+    return str(base_dir / f"{uuid4().hex}.db")
 
 
-def make_database_path() -> str:
-    return str(TEST_DB_DIR / f"{uuid4().hex}.db")
-
-
-def make_client(database_path: str | None = None):
-    app = create_app({"DATABASE_PATH": database_path or make_database_path()})
+def make_client(base_dir: Path, database_path: str | None = None):
+    app = create_app({"DATABASE_PATH": database_path or make_database_path(base_dir)})
     return app.test_client()
 
 
-def test_healthcheck():
-    client = make_client()
+def test_healthcheck(tmp_path):
+    client = make_client(tmp_path)
     response = client.get("/health")
 
     assert response.status_code == 200
@@ -26,8 +22,8 @@ def test_healthcheck():
     assert response.headers["X-Backend-Node"] == "local-node"
 
 
-def test_node_info_endpoint():
-    client = make_client()
+def test_node_info_endpoint(tmp_path):
+    client = make_client(tmp_path)
 
     response = client.get("/api/v1/node")
 
@@ -35,8 +31,8 @@ def test_node_info_endpoint():
     assert response.get_json()["instance_name"] == "local-node"
 
 
-def test_homepage_renders_gui():
-    client = make_client()
+def test_homepage_renders_gui(tmp_path):
+    client = make_client(tmp_path)
 
     response = client.get("/")
 
@@ -45,8 +41,8 @@ def test_homepage_renders_gui():
     assert b"Create Short URL" in response.data
 
 
-def test_create_short_url_and_redirect_updates_analytics():
-    client = make_client()
+def test_create_short_url_and_redirect_updates_analytics(tmp_path):
+    client = make_client(tmp_path)
 
     create_response = client.post(
         "/api/v1/urls",
@@ -71,10 +67,12 @@ def test_create_short_url_and_redirect_updates_analytics():
     assert details_payload["last_accessed_at"] is not None
 
 
-def test_list_urls_returns_all_saved_mappings():
-    client = make_client()
+def test_list_urls_returns_all_saved_mappings(tmp_path):
+    client = make_client(tmp_path)
 
-    client.post("/api/v1/urls", json={"url": "https://example.com/one", "expires_in_days": 7})
+    client.post(
+        "/api/v1/urls", json={"url": "https://example.com/one", "expires_in_days": 7}
+    )
     client.post("/api/v1/urls", json={"url": "https://example.com/two"})
 
     response = client.get("/api/v1/urls")
@@ -88,8 +86,8 @@ def test_list_urls_returns_all_saved_mappings():
     assert payload[1]["short_url"].endswith(f"/{payload[1]['code']}")
 
 
-def test_persists_data_across_app_restarts():
-    database_path = make_database_path()
+def test_persists_data_across_app_restarts(tmp_path):
+    database_path = make_database_path(tmp_path)
 
     first_app = create_app({"DATABASE_PATH": database_path})
     first_client = first_app.test_client()
@@ -107,8 +105,8 @@ def test_persists_data_across_app_restarts():
     assert details_response.get_json()["long_url"] == "https://example.com/persisted"
 
 
-def test_invalid_url_rejected():
-    client = make_client()
+def test_invalid_url_rejected(tmp_path):
+    client = make_client(tmp_path)
 
     response = client.post("/api/v1/urls", json={"url": "not-a-url"})
 
@@ -116,16 +114,16 @@ def test_invalid_url_rejected():
     assert "http or https" in response.get_json()["error"]
 
 
-def test_unknown_code_returns_404():
-    client = make_client()
+def test_unknown_code_returns_404(tmp_path):
+    client = make_client(tmp_path)
 
     response = client.get("/missing")
 
     assert response.status_code == 404
 
 
-def test_expired_code_returns_410():
-    client = make_client()
+def test_expired_code_returns_410(tmp_path):
+    client = make_client(tmp_path)
 
     create_response = client.post(
         "/api/v1/urls",

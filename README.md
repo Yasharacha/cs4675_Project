@@ -21,8 +21,14 @@ You can override the database path by passing `DATABASE_PATH` into `create_app(.
 
 ## Run locally
 
+Install dependencies with uv:
+
 ```bash
-python run.py
+uv sync --dev
+```
+
+```bash
+uv run python run.py
 ```
 
 This creates or reuses a SQLite database at `data/url_shortener.db`.
@@ -36,7 +42,7 @@ Once the server is running, open `http://127.0.0.1:5000/` in a browser to use th
 
 To verify persistence manually:
 
-1. Start the server with `python run.py`
+1. Start the server with `uv run python run.py`
 2. Create a short URL with the API
 3. Stop the server
 4. Start the server again
@@ -45,7 +51,7 @@ To verify persistence manually:
 ## Run tests
 
 ```bash
-pytest
+uv run pytest
 ```
 
 ## Print Database Contents
@@ -53,19 +59,19 @@ pytest
 To print every stored URL mapping from the local SQLite database:
 
 ```bash
-python print_db.py
+uv run python print_db.py
 ```
 
 If you want to point at a different database file:
 
 ```bash
-DATABASE_PATH=some/other/file.db python print_db.py
+DATABASE_PATH=some/other/file.db uv run python print_db.py
 ```
 
 If you are running the distributed Docker stack and want to inspect the shared Docker-backed database instead:
 
 ```bash
-python print_db.py --docker
+uv run python print_db.py --docker
 ```
 
 ## Planned stages
