@@ -9,11 +9,11 @@ from .models import UrlMapping
 
 
 class UrlRepository(Protocol):
-    def next_id(self) -> int: ...
-
     def save(self, mapping: UrlMapping) -> UrlMapping: ...
 
     def get(self, code: str) -> UrlMapping | None: ...
+
+    def get_by_url(self, long_url: str) -> UrlMapping | None: ...
 
     def list_all(self) -> list[UrlMapping]: ...
 
@@ -21,13 +21,7 @@ class UrlRepository(Protocol):
 class InMemoryUrlRepository:
     def __init__(self) -> None:
         self._mappings: dict[str, UrlMapping] = {}
-        self._counter = 0
         self._lock = Lock()
-
-    def next_id(self) -> int:
-        with self._lock:
-            self._counter += 1
-            return self._counter
 
     def save(self, mapping: UrlMapping) -> UrlMapping:
         with self._lock:
@@ -37,6 +31,13 @@ class InMemoryUrlRepository:
     def get(self, code: str) -> UrlMapping | None:
         with self._lock:
             return self._mappings.get(code)
+
+    def get_by_url(self, long_url: str) -> UrlMapping | None:
+        with self._lock:
+            for mapping in self._mappings.values():
+                if mapping.long_url == long_url:
+                    return mapping
+            return None
 
     def list_all(self) -> list[UrlMapping]:
         with self._lock:
@@ -65,8 +66,7 @@ class SQLiteUrlRepository:
             connection.execute(
                 """
                 CREATE TABLE IF NOT EXISTS url_mappings (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    code TEXT UNIQUE,
+                    code TEXT PRIMARY KEY,
                     long_url TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     expires_at TEXT,
@@ -77,32 +77,14 @@ class SQLiteUrlRepository:
             )
             connection.commit()
 
-    def next_id(self) -> int:
-        with self._lock, self._connect() as connection:
-            cursor = connection.execute(
-                """
-                INSERT INTO url_mappings (code, long_url, created_at)
-                VALUES (?, ?, ?)
-                """,
-                (None, "__pending__", "__pending__"),
-            )
-            connection.commit()
-            if cursor.lastrowid is None:
-                raise RuntimeError("Could not generate next ID")
-            return int(cursor.lastrowid)
-
     def save(self, mapping: UrlMapping) -> UrlMapping:
         with self._lock, self._connect() as connection:
+            # Try to insert first, if it exists, update it
             connection.execute(
                 """
-                UPDATE url_mappings
-                SET code = ?,
-                    long_url = ?,
-                    created_at = ?,
-                    expires_at = ?,
-                    click_count = ?,
-                    last_accessed_at = ?
-                WHERE code = ? OR id = ?
+                INSERT OR REPLACE INTO url_mappings
+                (code, long_url, created_at, expires_at, click_count, last_accessed_at)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
                     mapping.code,
@@ -115,8 +97,6 @@ class SQLiteUrlRepository:
                         if mapping.last_accessed_at
                         else None
                     ),
-                    mapping.code,
-                    self._decode_base62(mapping.code),
                 ),
             )
             connection.commit()
@@ -151,14 +131,43 @@ class SQLiteUrlRepository:
             ),
         )
 
+    def get_by_url(self, long_url: str) -> UrlMapping | None:
+        with self._lock, self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT code, long_url, created_at, expires_at, click_count, last_accessed_at
+                FROM url_mappings
+                WHERE long_url = ?
+                LIMIT 1
+                """,
+                (long_url,),
+            ).fetchone()
+
+        if row is None:
+            return None
+
+        return UrlMapping(
+            code=row["code"],
+            long_url=row["long_url"],
+            created_at=self._parse_datetime(row["created_at"]),
+            expires_at=(
+                self._parse_datetime(row["expires_at"]) if row["expires_at"] else None
+            ),
+            click_count=row["click_count"],
+            last_accessed_at=(
+                self._parse_datetime(row["last_accessed_at"])
+                if row["last_accessed_at"]
+                else None
+            ),
+        )
+
     def list_all(self) -> list[UrlMapping]:
         with self._lock, self._connect() as connection:
             rows = connection.execute(
                 """
                 SELECT code, long_url, created_at, expires_at, click_count, last_accessed_at
                 FROM url_mappings
-                WHERE code IS NOT NULL AND long_url != '__pending__'
-                ORDER BY id
+                ORDER BY created_at
                 """
             ).fetchall()
 
@@ -187,11 +196,3 @@ class SQLiteUrlRepository:
         from datetime import datetime
 
         return datetime.fromisoformat(value)
-
-    @staticmethod
-    def _decode_base62(code: str) -> int:
-        alphabet = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        value = 0
-        for char in code:
-            value = value * len(alphabet) + alphabet.index(char)
-        return value

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from urllib.parse import urlparse
@@ -7,7 +8,7 @@ from urllib.parse import urlparse
 from .models import UrlMapping
 from .storage import UrlRepository
 
-BASE62_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+BASE62_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
 
 class InvalidUrlError(ValueError):
@@ -30,7 +31,12 @@ class UrlShortenerService:
         self, long_url: str, expires_in_days: int | None = None
     ) -> UrlMapping:
         normalized_url = self._validate_url(long_url)
-        code = self._encode_base62(self.repository.next_id())
+        existing = self.repository.get_by_url(normalized_url)
+        if existing is not None and not existing.is_expired:
+            return existing
+
+        code = self._generate_short_code(normalized_url)
+
         now = datetime.now(UTC)
         expires_at = (
             now + timedelta(days=expires_in_days)
@@ -88,13 +94,32 @@ class UrlShortenerService:
             )
         return url
 
-    def _encode_base62(self, value: int) -> str:
-        if value <= 0:
-            raise ValueError("value must be positive")
+    def _generate_short_code(self, url: str) -> str:
+        url_hash = hashlib.sha256(url.encode()).digest()
+        hash_int = int.from_bytes(url_hash[:6], byteorder="big")
 
-        encoded: list[str] = []
-        current = value
-        while current:
-            current, remainder = divmod(current, len(BASE62_ALPHABET))
-            encoded.append(BASE62_ALPHABET[remainder])
-        return "".join(reversed(encoded))
+        for code_length in range(6, 12):
+            code = self._encode_base62(hash_int, code_length)
+
+            existing = self.repository.get(code)
+            if existing is None:
+                return code
+            if existing.long_url == url:
+                return code
+
+            hash_int = (hash_int * 31 + code_length) % (62**12)
+
+        code = self._encode_base62(hash_int % (62**11), 11)
+        return code
+
+    def _encode_base62(self, value: int, min_length: int = 1) -> str:
+        if value == 0:
+            return "0" * min_length
+
+        digits = []
+        while value > 0:
+            digits.append(BASE62_ALPHABET[value % 62])
+            value //= 62
+
+        code = "".join(reversed(digits))
+        return code.rjust(min_length, "0")

@@ -33,9 +33,9 @@ def read_local_db(database_path: str) -> None:
 
     rows = connection.execute(
         """
-        SELECT id, code, long_url, created_at, expires_at, click_count, last_accessed_at
+        SELECT code, long_url, created_at, expires_at, click_count, last_accessed_at
         FROM url_mappings
-        ORDER BY id
+        ORDER BY created_at
         """
     ).fetchall()
 
@@ -56,8 +56,8 @@ def read_docker_db(service: str) -> None:
             "conn = sqlite3.connect('/app/data/url_shortener.db'); "
             "conn.row_factory = sqlite3.Row; "
             "rows = conn.execute("
-            "\"SELECT id, code, long_url, created_at, expires_at, click_count, last_accessed_at "
-            "FROM url_mappings ORDER BY id\""
+            '"SELECT code, long_url, created_at, expires_at, click_count, last_accessed_at '
+            'FROM url_mappings ORDER BY created_at"'
             ").fetchall(); "
             "print(json.dumps([dict(r) for r in rows]))"
         ),
@@ -78,7 +78,9 @@ def read_docker_db(service: str) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Print URL shortener database contents.")
+    parser = argparse.ArgumentParser(
+        description="Print URL shortener database contents."
+    )
     parser.add_argument(
         "--docker",
         action="store_true",
