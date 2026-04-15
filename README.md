@@ -79,7 +79,8 @@ uv run python print_db.py --docker
 1. Single-node service and API contract
 2. Persistent storage with database-backed mappings
 3. Multi-node deployment with Docker and nginx
-4. Fault-tolerance testing, load testing, and performance analysis
+4. Fault-tolerance testing and failover behavior
+5. Performance and evaluation
 
 ## Stage 3
 
@@ -305,13 +306,100 @@ docker compose logs backend2
 
 ### Stage 5: Performance and Evaluation
 
-Still to do:
+Stage 5 is implemented with the benchmark runner in `benchmark.py`.
 
-- run baseline measurements against the single-node deployment
-- run the same measurements against the nginx multi-node deployment
-- compare latency, throughput, and error rate
-- test read-heavy and shorten-heavy request patterns
-- summarize the observed tradeoffs and current architectural limitations
+The script is designed to produce repeatable measurements for:
+
+- a single-node deployment, usually `http://127.0.0.1:5000`
+- the nginx multi-node deployment, usually `http://127.0.0.1:8080`
+- a read-heavy workload
+- a shorten-heavy workload
+- latency, throughput, error rate, and backend-node distribution
+
+### Stage 5 Workloads
+
+The benchmark runner uses two built-in workload mixes:
+
+- `read-heavy`: 70% redirects, 20% metadata lookups, 10% `GET /api/v1/urls`
+- `shorten-heavy`: 85% `POST /api/v1/urls`, 10% metadata lookups, 5% `GET /api/v1/urls`
+
+Before each timed run, the script seeds the target deployment with a configurable number of short URLs so read operations have realistic data to hit.
+
+### Stage 5 Runbook
+
+#### 1. Start the single-node app
+
+```bash
+uv run python run.py
+```
+
+Leave that process running on `http://127.0.0.1:5000`.
+
+#### 2. Start the multi-node Docker stack in a second terminal
+
+```bash
+docker compose up --build -d
+docker compose ps
+```
+
+Leave nginx running on `http://127.0.0.1:8080`.
+
+#### 3. Run the full Stage 5 suite
+
+```bash
+uv run python benchmark.py run-stage5 \
+  --single-url http://127.0.0.1:5000 \
+  --multi-url http://127.0.0.1:8080 \
+  --requests 400 \
+  --concurrency 20 \
+  --seed-count 100
+```
+
+This writes a timestamped results folder under `benchmarks/results/`.
+
+Inside that folder you will get:
+
+- one JSON result file for each deployment/scenario pair
+- `stage5-summary.json` with the combined comparison data
+- `stage5-summary.md` with a report-ready markdown summary
+
+#### 4. Run one scenario by itself if needed
+
+```bash
+uv run python benchmark.py run-scenario \
+  --base-url http://127.0.0.1:8080 \
+  --deployment multi-node \
+  --scenario read-heavy \
+  --output benchmarks/results/manual-read-heavy.json
+```
+
+### Stage 5 Metrics
+
+Each benchmark result includes:
+
+- request count and concurrency
+- throughput in requests per second
+- average, median, and p95 latency in milliseconds
+- success count, error count, and error rate
+- HTTP status-code counts
+- backend-node header counts
+- per-operation breakdowns for create, redirect, details, and list requests
+
+### Stage 5 How To Interpret Results
+
+Use the generated markdown summary to compare:
+
+- single-node throughput versus multi-node throughput
+- average latency and p95 latency for each workload
+- error rate under read-heavy versus shorten-heavy traffic
+- whether nginx distributed requests across both backends during the multi-node runs
+
+Expected tradeoffs to discuss:
+
+- read-heavy traffic may benefit more from the replicated backend layout
+- shorten-heavy traffic may show smaller gains because both backends still share one SQLite file
+- large improvements in throughput with minimal latency regression are a good sign
+- any non-zero error rate or major p95 spike is a signal to inspect nginx logs, backend logs, and SQLite contention
 
 ### Known Limitations To Discuss In The Final Report
 
