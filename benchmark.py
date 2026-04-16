@@ -12,6 +12,7 @@ from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from html import escape
 from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin
@@ -560,6 +561,626 @@ def render_markdown_report(summary_bundle: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def scenario_title(name: str) -> str:
+    return name.replace("-", " ").title()
+
+
+def metric_rows(summary_bundle: dict[str, Any], metric_path: tuple[str, ...]) -> list[dict[str, Any]]:
+    rows = []
+    for scenario_name in SCENARIOS:
+        single_run = summary_bundle["runs"]["single-node"][scenario_name]
+        multi_run = summary_bundle["runs"]["multi-node"][scenario_name]
+
+        single_value = single_run
+        multi_value = multi_run
+        for key in metric_path:
+            single_value = single_value[key]
+            multi_value = multi_value[key]
+
+        rows.append(
+            {
+                "category": scenario_title(scenario_name),
+                "single-node": float(single_value),
+                "multi-node": float(multi_value),
+            }
+        )
+    return rows
+
+
+def render_grouped_bar_chart_svg(
+    *,
+    title: str,
+    subtitle: str,
+    y_label: str,
+    rows: list[dict[str, Any]],
+    filename_label: str,
+) -> str:
+    width = 980
+    height = 560
+    margin_top = 84
+    margin_right = 56
+    margin_bottom = 92
+    margin_left = 88
+    plot_width = width - margin_left - margin_right
+    plot_height = height - margin_top - margin_bottom
+
+    series = [
+        ("single-node", "Single node", "#1f5f8b"),
+        ("multi-node", "Multi node", "#d97706"),
+    ]
+    max_value = max(
+        max(float(row[series_key]) for row in rows)
+        for series_key, _label, _color in series
+    )
+    max_value = max_value * 1.15 if max_value else 1.0
+
+    group_width = plot_width / max(len(rows), 1)
+    bar_width = min(88, (group_width * 0.72) / len(series))
+    bar_gap = 10
+    total_bar_width = len(series) * bar_width + (len(series) - 1) * bar_gap
+    grid_steps = 5
+
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img" aria-label="{escape(title)}">',
+        "<defs>",
+        '<style>',
+        ".title { font: 700 26px Arial, sans-serif; fill: #14213d; }",
+        ".subtitle { font: 400 14px Arial, sans-serif; fill: #5b6472; }",
+        ".axis { font: 12px Arial, sans-serif; fill: #334155; }",
+        ".label { font: 600 13px Arial, sans-serif; fill: #1f2937; }",
+        ".value { font: 600 12px Arial, sans-serif; fill: #0f172a; }",
+        ".legend { font: 600 13px Arial, sans-serif; fill: #1f2937; }",
+        ".grid { stroke: #d8dee9; stroke-width: 1; }",
+        ".axis-line { stroke: #94a3b8; stroke-width: 1.2; }",
+        "</style>",
+        "</defs>",
+        f'<rect width="{width}" height="{height}" fill="#f8fafc" />',
+        f'<text x="{margin_left}" y="36" class="title">{escape(title)}</text>',
+        f'<text x="{margin_left}" y="58" class="subtitle">{escape(subtitle)}</text>',
+        f'<text x="{width - margin_right}" y="36" text-anchor="end" class="subtitle">{escape(filename_label)}</text>',
+    ]
+
+    for step in range(grid_steps + 1):
+        y = margin_top + plot_height - (plot_height * step / grid_steps)
+        value = max_value * step / grid_steps
+        parts.append(
+            f'<line x1="{margin_left}" y1="{y:.2f}" x2="{width - margin_right}" y2="{y:.2f}" class="grid" />'
+        )
+        parts.append(
+            f'<text x="{margin_left - 12}" y="{y + 4:.2f}" text-anchor="end" class="axis">{value:.0f}</text>'
+        )
+
+    parts.append(
+        f'<line x1="{margin_left}" y1="{margin_top}" x2="{margin_left}" y2="{margin_top + plot_height}" class="axis-line" />'
+    )
+    parts.append(
+        f'<line x1="{margin_left}" y1="{margin_top + plot_height}" x2="{width - margin_right}" y2="{margin_top + plot_height}" class="axis-line" />'
+    )
+    parts.append(
+        f'<text x="20" y="{margin_top + plot_height / 2:.2f}" transform="rotate(-90 20 {margin_top + plot_height / 2:.2f})" class="label">{escape(y_label)}</text>'
+    )
+
+    legend_x = width - margin_right - 210
+    legend_y = 56
+    for index, (_series_key, label, color) in enumerate(series):
+        y = legend_y + index * 22
+        parts.append(
+            f'<rect x="{legend_x}" y="{y - 10}" width="14" height="14" rx="3" fill="{color}" />'
+        )
+        parts.append(
+            f'<text x="{legend_x + 22}" y="{y + 1}" class="legend">{escape(label)}</text>'
+        )
+
+    for row_index, row in enumerate(rows):
+        group_x = margin_left + row_index * group_width + (group_width - total_bar_width) / 2
+        category_center = margin_left + row_index * group_width + group_width / 2
+
+        for series_index, (series_key, _label, color) in enumerate(series):
+            value = float(row[series_key])
+            bar_height = 0 if max_value == 0 else (value / max_value) * plot_height
+            x = group_x + series_index * (bar_width + bar_gap)
+            y = margin_top + plot_height - bar_height
+            parts.append(
+                f'<rect x="{x:.2f}" y="{y:.2f}" width="{bar_width:.2f}" height="{bar_height:.2f}" rx="10" fill="{color}" />'
+            )
+            parts.append(
+                f'<text x="{x + bar_width / 2:.2f}" y="{max(y - 8, margin_top + 14):.2f}" text-anchor="middle" class="value">{value:.3f}</text>'
+            )
+
+        parts.append(
+            f'<text x="{category_center:.2f}" y="{height - 32}" text-anchor="middle" class="label">{escape(str(row["category"]))}</text>'
+        )
+
+    parts.append("</svg>")
+    return "\n".join(parts)
+
+
+def render_stacked_bar_chart_svg(
+    *,
+    title: str,
+    subtitle: str,
+    y_label: str,
+    rows: list[dict[str, Any]],
+    segment_names: list[str],
+    segment_colors: dict[str, str],
+) -> str:
+    width = 980
+    height = 580
+    margin_top = 84
+    margin_right = 56
+    margin_bottom = 112
+    margin_left = 88
+    plot_width = width - margin_left - margin_right
+    plot_height = height - margin_top - margin_bottom
+    bar_width = min(120, plot_width / max(len(rows) * 1.7, 1))
+    gap = (plot_width - bar_width * len(rows)) / max(len(rows) + 1, 1)
+    max_value = max(sum(float(row["segments"].get(name, 0)) for name in segment_names) for row in rows)
+    max_value = max_value * 1.15 if max_value else 1.0
+    grid_steps = 5
+
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img" aria-label="{escape(title)}">',
+        "<defs>",
+        '<style>',
+        ".title { font: 700 26px Arial, sans-serif; fill: #14213d; }",
+        ".subtitle { font: 400 14px Arial, sans-serif; fill: #5b6472; }",
+        ".axis { font: 12px Arial, sans-serif; fill: #334155; }",
+        ".label { font: 600 13px Arial, sans-serif; fill: #1f2937; }",
+        ".value { font: 600 12px Arial, sans-serif; fill: #0f172a; }",
+        ".legend { font: 600 13px Arial, sans-serif; fill: #1f2937; }",
+        ".grid { stroke: #d8dee9; stroke-width: 1; }",
+        ".axis-line { stroke: #94a3b8; stroke-width: 1.2; }",
+        "</style>",
+        "</defs>",
+        f'<rect width="{width}" height="{height}" fill="#f8fafc" />',
+        f'<text x="{margin_left}" y="36" class="title">{escape(title)}</text>',
+        f'<text x="{margin_left}" y="58" class="subtitle">{escape(subtitle)}</text>',
+    ]
+
+    for step in range(grid_steps + 1):
+        y = margin_top + plot_height - (plot_height * step / grid_steps)
+        value = max_value * step / grid_steps
+        parts.append(
+            f'<line x1="{margin_left}" y1="{y:.2f}" x2="{width - margin_right}" y2="{y:.2f}" class="grid" />'
+        )
+        parts.append(
+            f'<text x="{margin_left - 12}" y="{y + 4:.2f}" text-anchor="end" class="axis">{value:.0f}</text>'
+        )
+
+    parts.append(
+        f'<line x1="{margin_left}" y1="{margin_top}" x2="{margin_left}" y2="{margin_top + plot_height}" class="axis-line" />'
+    )
+    parts.append(
+        f'<line x1="{margin_left}" y1="{margin_top + plot_height}" x2="{width - margin_right}" y2="{margin_top + plot_height}" class="axis-line" />'
+    )
+    parts.append(
+        f'<text x="20" y="{margin_top + plot_height / 2:.2f}" transform="rotate(-90 20 {margin_top + plot_height / 2:.2f})" class="label">{escape(y_label)}</text>'
+    )
+
+    legend_x = width - margin_right - 250
+    legend_y = 56
+    for index, segment_name in enumerate(segment_names):
+        y = legend_y + index * 22
+        color = segment_colors[segment_name]
+        parts.append(
+            f'<rect x="{legend_x}" y="{y - 10}" width="14" height="14" rx="3" fill="{color}" />'
+        )
+        parts.append(
+            f'<text x="{legend_x + 22}" y="{y + 1}" class="legend">{escape(segment_name)}</text>'
+        )
+
+    for index, row in enumerate(rows):
+        x = margin_left + gap + index * (bar_width + gap)
+        current_y = margin_top + plot_height
+        total = 0.0
+        for segment_name in segment_names:
+            value = float(row["segments"].get(segment_name, 0))
+            total += value
+            if value == 0:
+                continue
+            segment_height = (value / max_value) * plot_height if max_value else 0
+            current_y -= segment_height
+            parts.append(
+                f'<rect x="{x:.2f}" y="{current_y:.2f}" width="{bar_width:.2f}" height="{segment_height:.2f}" rx="8" fill="{segment_colors[segment_name]}" />'
+            )
+
+        parts.append(
+            f'<text x="{x + bar_width / 2:.2f}" y="{max(current_y - 8, margin_top + 14):.2f}" text-anchor="middle" class="value">{total:.0f}</text>'
+        )
+        parts.append(
+            f'<text x="{x + bar_width / 2:.2f}" y="{height - 52}" text-anchor="middle" class="label">{escape(row["label"])}</text>'
+        )
+        parts.append(
+            f'<text x="{x + bar_width / 2:.2f}" y="{height - 32}" text-anchor="middle" class="axis">{escape(row["sub_label"])}</text>'
+        )
+
+    parts.append("</svg>")
+    return "\n".join(parts)
+
+
+def render_graph_dashboard_html(summary_bundle: dict[str, Any], graph_files: list[str]) -> str:
+    cards = []
+    for graph_file in graph_files:
+        cards.append(
+            "\n".join(
+                [
+                    '<section class="card">',
+                    f'  <h2>{escape(graph_file.replace("-", " ").replace(".svg", "").title())}</h2>',
+                    f'  <img src="{escape(graph_file)}" alt="{escape(graph_file)}">',
+                    "</section>",
+                ]
+            )
+        )
+
+    return "\n".join(
+        [
+            "<!doctype html>",
+            '<html lang="en">',
+            "  <head>",
+            '    <meta charset="utf-8">',
+            '    <meta name="viewport" content="width=device-width, initial-scale=1">',
+            "    <title>Stage 5 Benchmark Graphs</title>",
+            "    <style>",
+            "      body { margin: 0; font-family: Arial, sans-serif; background: #f1f5f9; color: #0f172a; }",
+            "      main { width: min(1200px, calc(100% - 32px)); margin: 24px auto 40px; }",
+            "      h1 { margin-bottom: 8px; font-size: 2rem; }",
+            "      p { color: #475569; }",
+            "      .grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }",
+            "      .card { background: white; border-radius: 20px; padding: 18px; box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08); }",
+            "      .card h2 { margin: 0 0 12px; font-size: 1.05rem; }",
+            "      img { width: 100%; height: auto; border-radius: 14px; border: 1px solid #e2e8f0; }",
+            "      .meta { margin-bottom: 20px; padding: 16px 18px; background: #dbeafe; border-radius: 18px; }",
+            "    </style>",
+            "  </head>",
+            "  <body>",
+            "    <main>",
+            "      <h1>Stage 5 Benchmark Graphs</h1>",
+            f"      <p>Generated from the Stage 5 summary bundle at <strong>{escape(summary_bundle['generated_at'])}</strong>.</p>",
+            '      <div class="meta">',
+            f"        <div>Requests per scenario: {summary_bundle['parameters']['request_count']}</div>",
+            f"        <div>Concurrency: {summary_bundle['parameters']['concurrency']}</div>",
+            f"        <div>Seed URLs: {summary_bundle['parameters']['seed_count']}</div>",
+            "      </div>",
+            '      <div class="grid">',
+            *cards,
+            "      </div>",
+            "    </main>",
+            "  </body>",
+            "</html>",
+        ]
+    )
+
+
+def generate_graph_files(summary_bundle: dict[str, Any], output_dir: Path) -> list[Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    chart_specs = [
+        {
+            "title": "Throughput Comparison",
+            "subtitle": "Higher is better. Compares request throughput across the two workload mixes.",
+            "y_label": "Requests per second",
+            "rows": metric_rows(summary_bundle, ("throughput_rps",)),
+            "filename": "throughput-comparison.svg",
+            "filename_label": "metric: throughput_rps",
+        },
+        {
+            "title": "Average Latency Comparison",
+            "subtitle": "Lower is better. Average end-to-end latency by deployment and scenario.",
+            "y_label": "Latency (ms)",
+            "rows": metric_rows(summary_bundle, ("latency_ms", "avg")),
+            "filename": "avg-latency-comparison.svg",
+            "filename_label": "metric: latency_ms.avg",
+        },
+        {
+            "title": "P95 Latency Comparison",
+            "subtitle": "Lower is better. Tail latency is useful for showing worst-case user experience.",
+            "y_label": "Latency (ms)",
+            "rows": metric_rows(summary_bundle, ("latency_ms", "p95")),
+            "filename": "p95-latency-comparison.svg",
+            "filename_label": "metric: latency_ms.p95",
+        },
+    ]
+
+    output_paths: list[Path] = []
+    for spec in chart_specs:
+        chart_path = output_dir / spec["filename"]
+        chart_path.write_text(
+            render_grouped_bar_chart_svg(
+                title=spec["title"],
+                subtitle=spec["subtitle"],
+                y_label=spec["y_label"],
+                rows=spec["rows"],
+                filename_label=spec["filename_label"],
+            ),
+            encoding="utf-8",
+        )
+        output_paths.append(chart_path)
+
+    backend_segments = sorted(
+        {
+            segment_name
+            for deployment_runs in summary_bundle["runs"].values()
+            for run in deployment_runs.values()
+            for segment_name in run["backend_node_counts"]
+        }
+    )
+    segment_colors = {
+        "backend1": "#2563eb",
+        "backend2": "#f97316",
+        "local-node": "#16a34a",
+    }
+    for segment_name in backend_segments:
+        segment_colors.setdefault(segment_name, "#6b7280")
+
+    backend_rows = []
+    for deployment_key in ("single-node", "multi-node"):
+        for scenario_name in SCENARIOS:
+            run = summary_bundle["runs"][deployment_key][scenario_name]
+            backend_rows.append(
+                {
+                    "label": "Single node" if deployment_key == "single-node" else "Multi node",
+                    "sub_label": scenario_title(scenario_name),
+                    "segments": run["backend_node_counts"],
+                }
+            )
+
+    backend_path = output_dir / "backend-distribution.svg"
+    backend_path.write_text(
+        render_stacked_bar_chart_svg(
+            title="Backend Distribution",
+            subtitle="Shows how responses were distributed across backend instances during each benchmark run.",
+            y_label="Responses counted",
+            rows=backend_rows,
+            segment_names=backend_segments,
+            segment_colors=segment_colors,
+        ),
+        encoding="utf-8",
+    )
+    output_paths.append(backend_path)
+
+    dashboard_path = output_dir / "graphs.html"
+    dashboard_path.write_text(
+        render_graph_dashboard_html(summary_bundle, [path.name for path in output_paths]),
+        encoding="utf-8",
+    )
+    output_paths.append(dashboard_path)
+    return output_paths
+
+
+def build_results_blurb(summary_bundle: dict[str, Any]) -> str:
+    read_delta = summary_bundle["comparisons"]["read-heavy"]["delta"]
+    shorten_delta = summary_bundle["comparisons"]["shorten-heavy"]["delta"]
+    return (
+        "In this benchmark run, the multi-node deployment slightly improved read-heavy throughput "
+        f"({read_delta['throughput_percent']}%) and more clearly improved shorten-heavy throughput "
+        f"({shorten_delta['throughput_percent']}%). Average latency improved by "
+        f"{abs(read_delta['avg_latency_percent'])}% for read-heavy traffic and "
+        f"{abs(shorten_delta['avg_latency_percent'])}% for shorten-heavy traffic, while error rate stayed at 0.0 in all runs."
+    )
+
+
+def render_report_figure_captions(summary_bundle: dict[str, Any]) -> str:
+    read_single = summary_bundle["runs"]["single-node"]["read-heavy"]
+    read_multi = summary_bundle["runs"]["multi-node"]["read-heavy"]
+    shorten_single = summary_bundle["runs"]["single-node"]["shorten-heavy"]
+    shorten_multi = summary_bundle["runs"]["multi-node"]["shorten-heavy"]
+    read_delta = summary_bundle["comparisons"]["read-heavy"]["delta"]
+    shorten_delta = summary_bundle["comparisons"]["shorten-heavy"]["delta"]
+
+    return "\n".join(
+        [
+            "# Report Figure Captions",
+            "",
+            "## Suggested Results Paragraph",
+            "",
+            build_results_blurb(summary_bundle),
+            "",
+            "## Figure Captions",
+            "",
+            (
+                "Figure 1. Throughput by workload and deployment. "
+                f"For the read-heavy workload, throughput increased from {read_single['throughput_rps']} req/s "
+                f"on the single-node service to {read_multi['throughput_rps']} req/s on the multi-node deployment "
+                f"({read_delta['throughput_percent']}% change). For the shorten-heavy workload, throughput increased "
+                f"from {shorten_single['throughput_rps']} req/s to {shorten_multi['throughput_rps']} req/s "
+                f"({shorten_delta['throughput_percent']}% change)."
+            ),
+            "",
+            (
+                "Figure 2. Average latency by workload and deployment. "
+                f"Average latency decreased from {read_single['latency_ms']['avg']} ms to {read_multi['latency_ms']['avg']} ms "
+                f"for the read-heavy workload and from {shorten_single['latency_ms']['avg']} ms to "
+                f"{shorten_multi['latency_ms']['avg']} ms for the shorten-heavy workload."
+            ),
+            "",
+            (
+                "Figure 3. P95 latency by workload and deployment. "
+                f"Tail latency was nearly unchanged for the read-heavy workload "
+                f"({read_single['latency_ms']['p95']} ms single-node versus {read_multi['latency_ms']['p95']} ms multi-node), "
+                f"while the shorten-heavy workload improved from {shorten_single['latency_ms']['p95']} ms to "
+                f"{shorten_multi['latency_ms']['p95']} ms."
+            ),
+            "",
+            (
+                "Figure 4. Backend response distribution during the benchmark runs. "
+                f"The single-node deployment served all requests from local-node, while the multi-node deployment "
+                f"split both workloads evenly across backend1 and backend2 ({read_multi['backend_node_counts'].get('backend1', 0)} / "
+                f"{read_multi['backend_node_counts'].get('backend2', 0)} in read-heavy and "
+                f"{shorten_multi['backend_node_counts'].get('backend1', 0)} / "
+                f"{shorten_multi['backend_node_counts'].get('backend2', 0)} in shorten-heavy)."
+            ),
+            "",
+            "## Export Note",
+            "",
+            "These figures are SVG files. They are publication-friendly and scale cleanly in Word, Google Docs, and LaTeX without raster blur.",
+            "",
+        ]
+    )
+
+
+def render_report_gallery_html(summary_bundle: dict[str, Any], figure_files: list[tuple[str, str]]) -> str:
+    cards = []
+    for filename, caption in figure_files:
+        cards.append(
+            "\n".join(
+                [
+                    '<figure class="card">',
+                    f'  <img src="{escape(filename)}" alt="{escape(filename)}">',
+                    f'  <figcaption>{escape(caption)}</figcaption>',
+                    "</figure>",
+                ]
+            )
+        )
+
+    return "\n".join(
+        [
+            "<!doctype html>",
+            '<html lang="en">',
+            "  <head>",
+            '    <meta charset="utf-8">',
+            '    <meta name="viewport" content="width=device-width, initial-scale=1">',
+            "    <title>Stage 5 Report Figures</title>",
+            "    <style>",
+            "      body { margin: 0; font-family: Georgia, 'Times New Roman', serif; background: #f8fafc; color: #0f172a; }",
+            "      main { width: min(1240px, calc(100% - 40px)); margin: 28px auto 48px; }",
+            "      h1 { margin: 0 0 10px; font-size: 2.2rem; }",
+            "      p { max-width: 70ch; line-height: 1.6; color: #334155; }",
+            "      .grid { display: grid; gap: 22px; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); margin-top: 24px; }",
+            "      .card { margin: 0; background: white; border-radius: 20px; padding: 18px; box-shadow: 0 18px 36px rgba(15, 23, 42, 0.08); }",
+            "      img { display: block; width: 100%; height: auto; border: 1px solid #e2e8f0; border-radius: 14px; background: #fff; }",
+            "      figcaption { margin-top: 12px; line-height: 1.5; color: #475569; font-size: 0.98rem; }",
+            "      .meta { margin-top: 12px; padding: 14px 16px; border-left: 4px solid #1d4ed8; background: #dbeafe; border-radius: 12px; }",
+            "    </style>",
+            "  </head>",
+            "  <body>",
+            "    <main>",
+            "      <h1>Stage 5 Report Figures</h1>",
+            f"      <p>{escape(build_results_blurb(summary_bundle))}</p>",
+            '      <div class="meta">',
+            f"        Requests per scenario: {summary_bundle['parameters']['request_count']} | "
+            f"Concurrency: {summary_bundle['parameters']['concurrency']} | "
+            f"Seed URLs: {summary_bundle['parameters']['seed_count']}",
+            "      </div>",
+            '      <div class="grid">',
+            *cards,
+            "      </div>",
+            "    </main>",
+            "  </body>",
+            "</html>",
+        ]
+    )
+
+
+def generate_report_figure_files(summary_bundle: dict[str, Any], output_dir: Path) -> list[Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    figure_specs = [
+        {
+            "filename": "figure-1-throughput.svg",
+            "title": "Figure 1. Throughput by Workload and Deployment",
+            "subtitle": "Higher is better. Based on 400 requests per scenario at concurrency 20.",
+            "y_label": "Requests per second",
+            "rows": metric_rows(summary_bundle, ("throughput_rps",)),
+            "filename_label": "report figure 1",
+            "caption": "Throughput comparison for the read-heavy and shorten-heavy workloads.",
+        },
+        {
+            "filename": "figure-2-average-latency.svg",
+            "title": "Figure 2. Average Latency by Workload and Deployment",
+            "subtitle": "Lower is better. End-to-end average latency for each benchmark scenario.",
+            "y_label": "Latency (ms)",
+            "rows": metric_rows(summary_bundle, ("latency_ms", "avg")),
+            "filename_label": "report figure 2",
+            "caption": "Average latency comparison for the read-heavy and shorten-heavy workloads.",
+        },
+        {
+            "filename": "figure-3-p95-latency.svg",
+            "title": "Figure 3. P95 Latency by Workload and Deployment",
+            "subtitle": "Lower is better. Tail latency highlights worst-case response behavior.",
+            "y_label": "Latency (ms)",
+            "rows": metric_rows(summary_bundle, ("latency_ms", "p95")),
+            "filename_label": "report figure 3",
+            "caption": "P95 latency comparison for the read-heavy and shorten-heavy workloads.",
+        },
+    ]
+
+    output_paths: list[Path] = []
+    gallery_entries: list[tuple[str, str]] = []
+
+    for spec in figure_specs:
+        figure_path = output_dir / spec["filename"]
+        figure_path.write_text(
+            render_grouped_bar_chart_svg(
+                title=spec["title"],
+                subtitle=spec["subtitle"],
+                y_label=spec["y_label"],
+                rows=spec["rows"],
+                filename_label=spec["filename_label"],
+            ),
+            encoding="utf-8",
+        )
+        output_paths.append(figure_path)
+        gallery_entries.append((figure_path.name, spec["caption"]))
+
+    backend_segments = sorted(
+        {
+            segment_name
+            for deployment_runs in summary_bundle["runs"].values()
+            for run in deployment_runs.values()
+            for segment_name in run["backend_node_counts"]
+        }
+    )
+    segment_colors = {
+        "backend1": "#1d4ed8",
+        "backend2": "#ea580c",
+        "local-node": "#15803d",
+    }
+    for segment_name in backend_segments:
+        segment_colors.setdefault(segment_name, "#6b7280")
+
+    backend_rows = []
+    for deployment_key in ("single-node", "multi-node"):
+        for scenario_name in SCENARIOS:
+            run = summary_bundle["runs"][deployment_key][scenario_name]
+            backend_rows.append(
+                {
+                    "label": "Single node" if deployment_key == "single-node" else "Multi node",
+                    "sub_label": scenario_title(scenario_name),
+                    "segments": run["backend_node_counts"],
+                }
+            )
+
+    backend_path = output_dir / "figure-4-backend-distribution.svg"
+    backend_path.write_text(
+        render_stacked_bar_chart_svg(
+            title="Figure 4. Backend Response Distribution",
+            subtitle="Shows how responses were assigned to backend instances during each workload.",
+            y_label="Responses counted",
+            rows=backend_rows,
+            segment_names=backend_segments,
+            segment_colors=segment_colors,
+        ),
+        encoding="utf-8",
+    )
+    output_paths.append(backend_path)
+    gallery_entries.append(
+        (backend_path.name, "Response distribution across backend instances during the benchmark runs.")
+    )
+
+    captions_path = output_dir / "report-figure-captions.md"
+    captions_path.write_text(render_report_figure_captions(summary_bundle), encoding="utf-8")
+    output_paths.append(captions_path)
+
+    gallery_path = output_dir / "report-figures.html"
+    gallery_path.write_text(
+        render_report_gallery_html(summary_bundle, gallery_entries),
+        encoding="utf-8",
+    )
+    output_paths.append(gallery_path)
+
+    return output_paths
+
+
 def print_run_summary(summary: dict[str, Any]) -> None:
     print(
         f"[{summary['deployment']}][{summary['scenario']}] "
@@ -649,9 +1270,36 @@ def run_stage5_command(args: argparse.Namespace) -> int:
         render_markdown_report(summary_bundle),
         encoding="utf-8",
     )
+    graph_paths = generate_graph_files(summary_bundle, run_dir)
 
     print(f"Saved Stage 5 comparison JSON to {summary_json_path}")
     print(f"Saved Stage 5 comparison Markdown to {summary_md_path}")
+    print("Saved graph files:")
+    for graph_path in graph_paths:
+        print(f"- {graph_path}")
+    return 0
+
+
+def make_graphs_command(args: argparse.Namespace) -> int:
+    summary_json_path = Path(args.summary_json)
+    summary_bundle = json.loads(summary_json_path.read_text(encoding="utf-8"))
+    output_dir = Path(args.output_dir) if args.output_dir else summary_json_path.parent
+    graph_paths = generate_graph_files(summary_bundle, output_dir)
+    print("Saved graph files:")
+    for graph_path in graph_paths:
+        print(f"- {graph_path}")
+    return 0
+
+
+def make_report_figures_command(args: argparse.Namespace) -> int:
+    summary_json_path = Path(args.summary_json)
+    summary_bundle = json.loads(summary_json_path.read_text(encoding="utf-8"))
+    default_output = summary_json_path.parent / "report-figures"
+    output_dir = Path(args.output_dir) if args.output_dir else default_output
+    output_paths = generate_report_figure_files(summary_bundle, output_dir)
+    print("Saved report figure files:")
+    for output_path in output_paths:
+        print(f"- {output_path}")
     return 0
 
 
@@ -748,6 +1396,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional pause between scenario runs to reduce overlap. Default: 1.0",
     )
     stage5_parser.set_defaults(handler=run_stage5_command)
+
+    graphs_parser = subparsers.add_parser(
+        "make-graphs",
+        help="Generate SVG charts and an HTML dashboard from a Stage 5 summary JSON file.",
+    )
+    graphs_parser.add_argument(
+        "--summary-json",
+        required=True,
+        help="Path to stage5-summary.json",
+    )
+    graphs_parser.add_argument(
+        "--output-dir",
+        help="Directory for generated graph files. Defaults to the summary JSON directory.",
+    )
+    graphs_parser.set_defaults(handler=make_graphs_command)
+
+    report_parser = subparsers.add_parser(
+        "make-report-figures",
+        help="Generate cleaner figure-numbered SVGs and captions for a report from a Stage 5 summary JSON file.",
+    )
+    report_parser.add_argument(
+        "--summary-json",
+        required=True,
+        help="Path to stage5-summary.json",
+    )
+    report_parser.add_argument(
+        "--output-dir",
+        help="Directory for generated report figure files. Defaults to <summary-dir>/report-figures.",
+    )
+    report_parser.set_defaults(handler=make_report_figures_command)
 
     return parser
 

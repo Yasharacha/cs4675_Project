@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import shutil
 import threading
 import unittest
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from socket import socket
 from typing import ClassVar
+from uuid import uuid4
 
 import benchmark
 
@@ -174,6 +177,135 @@ class BenchmarkScriptTests(unittest.TestCase):
         self.assertEqual(comparison["delta"]["throughput_rps"], 20.0)
         self.assertEqual(comparison["delta"]["avg_latency_ms"], -2.0)
         self.assertEqual(comparison["delta"]["p95_latency_ms"], -5.0)
+
+    def test_generate_graph_files(self):
+        summary_bundle = {
+            "generated_at": "2026-04-15T17:36:37+00:00",
+            "parameters": {
+                "request_count": 400,
+                "concurrency": 20,
+                "seed_count": 100,
+                "timeout_seconds": 5.0,
+                "random_seed": 4675,
+            },
+            "runs": {
+                "single-node": {
+                    "read-heavy": {
+                        "throughput_rps": 10.0,
+                        "latency_ms": {"avg": 100.0, "p95": 150.0},
+                        "backend_node_counts": {"local-node": 400},
+                    },
+                    "shorten-heavy": {
+                        "throughput_rps": 9.0,
+                        "latency_ms": {"avg": 120.0, "p95": 180.0},
+                        "backend_node_counts": {"local-node": 400},
+                    },
+                },
+                "multi-node": {
+                    "read-heavy": {
+                        "throughput_rps": 11.0,
+                        "latency_ms": {"avg": 90.0, "p95": 140.0},
+                        "backend_node_counts": {"backend1": 200, "backend2": 200},
+                    },
+                    "shorten-heavy": {
+                        "throughput_rps": 10.5,
+                        "latency_ms": {"avg": 95.0, "p95": 145.0},
+                        "backend_node_counts": {"backend1": 200, "backend2": 200},
+                    },
+                },
+            },
+            "comparisons": {},
+        }
+
+        output_dir = Path("test_data") / f"graphs-{uuid4().hex}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            output_paths = benchmark.generate_graph_files(summary_bundle, output_dir)
+
+            self.assertEqual(len(output_paths), 5)
+            throughput_svg = output_dir / "throughput-comparison.svg"
+            dashboard_html = output_dir / "graphs.html"
+
+            self.assertTrue(throughput_svg.exists())
+            self.assertTrue(dashboard_html.exists())
+            self.assertIn("<svg", throughput_svg.read_text(encoding="utf-8"))
+            self.assertIn("Throughput Comparison", throughput_svg.read_text(encoding="utf-8"))
+            self.assertIn("Stage 5 Benchmark Graphs", dashboard_html.read_text(encoding="utf-8"))
+        finally:
+            shutil.rmtree(output_dir, ignore_errors=True)
+
+    def test_generate_report_figure_files(self):
+        summary_bundle = {
+            "generated_at": "2026-04-15T17:36:37+00:00",
+            "parameters": {
+                "request_count": 400,
+                "concurrency": 20,
+                "seed_count": 100,
+                "timeout_seconds": 5.0,
+                "random_seed": 4675,
+            },
+            "runs": {
+                "single-node": {
+                    "read-heavy": {
+                        "throughput_rps": 10.0,
+                        "latency_ms": {"avg": 100.0, "p95": 150.0},
+                        "backend_node_counts": {"local-node": 400},
+                    },
+                    "shorten-heavy": {
+                        "throughput_rps": 9.0,
+                        "latency_ms": {"avg": 120.0, "p95": 180.0},
+                        "backend_node_counts": {"local-node": 400},
+                    },
+                },
+                "multi-node": {
+                    "read-heavy": {
+                        "throughput_rps": 11.0,
+                        "latency_ms": {"avg": 90.0, "p95": 140.0},
+                        "backend_node_counts": {"backend1": 200, "backend2": 200},
+                    },
+                    "shorten-heavy": {
+                        "throughput_rps": 10.5,
+                        "latency_ms": {"avg": 95.0, "p95": 145.0},
+                        "backend_node_counts": {"backend1": 200, "backend2": 200},
+                    },
+                },
+            },
+            "comparisons": {
+                "read-heavy": {
+                    "delta": {
+                        "throughput_percent": 10.0,
+                        "avg_latency_percent": -10.0,
+                    }
+                },
+                "shorten-heavy": {
+                    "delta": {
+                        "throughput_percent": 16.0,
+                        "avg_latency_percent": -20.0,
+                    }
+                },
+            },
+        }
+
+        output_dir = Path("test_data") / f"report-figures-{uuid4().hex}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            output_paths = benchmark.generate_report_figure_files(summary_bundle, output_dir)
+
+            self.assertEqual(len(output_paths), 6)
+            figure_1 = output_dir / "figure-1-throughput.svg"
+            captions_md = output_dir / "report-figure-captions.md"
+            gallery_html = output_dir / "report-figures.html"
+
+            self.assertTrue(figure_1.exists())
+            self.assertTrue(captions_md.exists())
+            self.assertTrue(gallery_html.exists())
+            self.assertIn("Figure 1. Throughput by Workload and Deployment", figure_1.read_text(encoding="utf-8"))
+            self.assertIn("Figure 1. Throughput by workload and deployment.", captions_md.read_text(encoding="utf-8"))
+            self.assertIn("Stage 5 Report Figures", gallery_html.read_text(encoding="utf-8"))
+        finally:
+            shutil.rmtree(output_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":

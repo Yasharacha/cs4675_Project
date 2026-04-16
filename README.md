@@ -362,6 +362,8 @@ Inside that folder you will get:
 - one JSON result file for each deployment/scenario pair
 - `stage5-summary.json` with the combined comparison data
 - `stage5-summary.md` with a report-ready markdown summary
+- `throughput-comparison.svg`, `avg-latency-comparison.svg`, `p95-latency-comparison.svg`, and `backend-distribution.svg`
+- `graphs.html`, which places all generated charts on one page
 
 #### 4. Run one scenario by itself if needed
 
@@ -372,6 +374,26 @@ uv run python benchmark.py run-scenario \
   --scenario read-heavy \
   --output benchmarks/results/manual-read-heavy.json
 ```
+
+#### 5. Rebuild graphs for an existing results folder if needed
+
+```bash
+uv run python benchmark.py make-graphs \
+  --summary-json benchmarks/results/<timestamp>/stage5-summary.json
+```
+
+#### 6. Generate report-ready figures and captions
+
+```bash
+uv run python benchmark.py make-report-figures \
+  --summary-json benchmarks/results/<timestamp>/stage5-summary.json
+```
+
+This creates a `report-figures/` folder with:
+
+- figure-numbered SVG files for throughput, average latency, p95 latency, and backend distribution
+- `report-figure-captions.md` with report-ready figure captions and a suggested results paragraph
+- `report-figures.html` for quick review in a browser
 
 ### Stage 5 Metrics
 
