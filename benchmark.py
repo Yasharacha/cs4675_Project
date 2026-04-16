@@ -26,6 +26,15 @@ class Scenario:
     operation_weights: tuple[tuple[str, int], ...]
 
 
+@dataclass(frozen=True, slots=True)
+class CasePreset:
+    name: str
+    description: str
+    default_requests: int
+    default_concurrency: int
+    default_seed_count: int
+
+
 SCENARIOS: dict[str, Scenario] = {
     "read-heavy": Scenario(
         name="read-heavy",
@@ -36,6 +45,30 @@ SCENARIOS: dict[str, Scenario] = {
         name="shorten-heavy",
         description="85% shorten requests, 10% metadata lookup, 5% full-list reads.",
         operation_weights=(("create", 85), ("details", 10), ("list", 5)),
+    ),
+}
+
+CASE_PRESETS: dict[str, CasePreset] = {
+    "easy": CasePreset(
+        name="easy",
+        description="Single-node read-heavy benchmark for the simplest baseline demonstration.",
+        default_requests=80,
+        default_concurrency=6,
+        default_seed_count=20,
+    ),
+    "medium": CasePreset(
+        name="medium",
+        description="Multi-node benchmark covering both read-heavy and shorten-heavy workloads.",
+        default_requests=120,
+        default_concurrency=8,
+        default_seed_count=30,
+    ),
+    "hard": CasePreset(
+        name="hard",
+        description="Partial-failure exercise after one backend is stopped, using either curl validation or a smaller benchmark run.",
+        default_requests=60,
+        default_concurrency=4,
+        default_seed_count=15,
     ),
 }
 
@@ -143,6 +176,59 @@ def check_health(base_url: str, timeout_seconds: float) -> None:
         raise RuntimeError(
             f"Health check failed for {base_url}: expected 200, got {status_code} with body {body!r}"
         )
+
+
+def sample_backend_nodes(
+    base_url: str,
+    *,
+    attempts: int,
+    timeout_seconds: float,
+) -> list[str]:
+    samples: list[str] = []
+    for _ in range(attempts):
+        status_code, headers, body, error = send_request(
+            "GET",
+            build_url(base_url, "/api/v1/node"),
+            timeout_seconds=timeout_seconds,
+        )
+        if error is not None:
+            raise RuntimeError(f"Node sampling failed for {base_url}: {error}")
+        if status_code != 200:
+            raise RuntimeError(
+                f"Node sampling failed for {base_url}: expected 200, got {status_code} with body {body!r}"
+            )
+        node_name = headers.get("X-Backend-Node")
+        if node_name is None:
+            try:
+                node_name = json.loads(body)["instance_name"]
+            except (KeyError, json.JSONDecodeError) as exc:
+                raise RuntimeError(
+                    f"Node sampling failed for {base_url}: no backend node header and unusable body."
+                ) from exc
+        samples.append(str(node_name))
+    return samples
+
+
+def resolve_case_parameters(
+    *,
+    case_name: str,
+    requests: int | None,
+    concurrency: int | None,
+    seed_count: int | None,
+) -> dict[str, int]:
+    preset = CASE_PRESETS[case_name]
+    return {
+        "request_count": requests if requests is not None else preset.default_requests,
+        "concurrency": concurrency if concurrency is not None else preset.default_concurrency,
+        "seed_count": seed_count if seed_count is not None else preset.default_seed_count,
+    }
+
+
+def case_run_dir(base_output_dir: Path, case_name: str) -> Path:
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    run_dir = base_output_dir / f"{case_name}-{timestamp}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    return run_dir
 
 
 def seed_codes(
@@ -695,6 +781,87 @@ def render_grouped_bar_chart_svg(
     return "\n".join(parts)
 
 
+def render_single_series_bar_chart_svg(
+    *,
+    title: str,
+    subtitle: str,
+    y_label: str,
+    rows: list[dict[str, Any]],
+    filename_label: str,
+    color: str = "#1f5f8b",
+) -> str:
+    width = 980
+    height = 560
+    margin_top = 84
+    margin_right = 56
+    margin_bottom = 92
+    margin_left = 88
+    plot_width = width - margin_left - margin_right
+    plot_height = height - margin_top - margin_bottom
+    max_value = max((float(row["value"]) for row in rows), default=0.0)
+    max_value = max_value * 1.15 if max_value else 1.0
+    bar_width = min(120, plot_width / max(len(rows) * 1.7, 1))
+    gap = (plot_width - bar_width * len(rows)) / max(len(rows) + 1, 1)
+    grid_steps = 5
+
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img" aria-label="{escape(title)}">',
+        "<defs>",
+        '<style>',
+        ".title { font: 700 26px Arial, sans-serif; fill: #14213d; }",
+        ".subtitle { font: 400 14px Arial, sans-serif; fill: #5b6472; }",
+        ".axis { font: 12px Arial, sans-serif; fill: #334155; }",
+        ".label { font: 600 13px Arial, sans-serif; fill: #1f2937; }",
+        ".value { font: 600 12px Arial, sans-serif; fill: #0f172a; }",
+        ".grid { stroke: #d8dee9; stroke-width: 1; }",
+        ".axis-line { stroke: #94a3b8; stroke-width: 1.2; }",
+        "</style>",
+        "</defs>",
+        f'<rect width="{width}" height="{height}" fill="#f8fafc" />',
+        f'<text x="{margin_left}" y="36" class="title">{escape(title)}</text>',
+        f'<text x="{margin_left}" y="58" class="subtitle">{escape(subtitle)}</text>',
+        f'<text x="{width - margin_right}" y="36" text-anchor="end" class="subtitle">{escape(filename_label)}</text>',
+    ]
+
+    for step in range(grid_steps + 1):
+        y = margin_top + plot_height - (plot_height * step / grid_steps)
+        value = max_value * step / grid_steps
+        parts.append(
+            f'<line x1="{margin_left}" y1="{y:.2f}" x2="{width - margin_right}" y2="{y:.2f}" class="grid" />'
+        )
+        parts.append(
+            f'<text x="{margin_left - 12}" y="{y + 4:.2f}" text-anchor="end" class="axis">{value:.0f}</text>'
+        )
+
+    parts.append(
+        f'<line x1="{margin_left}" y1="{margin_top}" x2="{margin_left}" y2="{margin_top + plot_height}" class="axis-line" />'
+    )
+    parts.append(
+        f'<line x1="{margin_left}" y1="{margin_top + plot_height}" x2="{width - margin_right}" y2="{margin_top + plot_height}" class="axis-line" />'
+    )
+    parts.append(
+        f'<text x="20" y="{margin_top + plot_height / 2:.2f}" transform="rotate(-90 20 {margin_top + plot_height / 2:.2f})" class="label">{escape(y_label)}</text>'
+    )
+
+    for index, row in enumerate(rows):
+        x = margin_left + gap + index * (bar_width + gap)
+        value = float(row["value"])
+        bar_height = (value / max_value) * plot_height if max_value else 0
+        y = margin_top + plot_height - bar_height
+        parts.append(
+            f'<rect x="{x:.2f}" y="{y:.2f}" width="{bar_width:.2f}" height="{bar_height:.2f}" rx="10" fill="{color}" />'
+        )
+        parts.append(
+            f'<text x="{x + bar_width / 2:.2f}" y="{max(y - 8, margin_top + 14):.2f}" text-anchor="middle" class="value">{value:.3f}</text>'
+        )
+        parts.append(
+            f'<text x="{x + bar_width / 2:.2f}" y="{height - 32}" text-anchor="middle" class="label">{escape(str(row["label"]))}</text>'
+        )
+
+    parts.append("</svg>")
+    return "\n".join(parts)
+
+
 def render_stacked_bar_chart_svg(
     *,
     title: str,
@@ -1181,6 +1348,463 @@ def generate_report_figure_files(summary_bundle: dict[str, Any], output_dir: Pat
     return output_paths
 
 
+def render_case_graph_dashboard_html(case_bundle: dict[str, Any], graph_files: list[str]) -> str:
+    cards = []
+    for graph_file in graph_files:
+        cards.append(
+            "\n".join(
+                [
+                    '<section class="card">',
+                    f'  <h2>{escape(graph_file.replace("-", " ").replace(".svg", "").title())}</h2>',
+                    f'  <img src="{escape(graph_file)}" alt="{escape(graph_file)}">',
+                    "</section>",
+                ]
+            )
+        )
+
+    return "\n".join(
+        [
+            "<!doctype html>",
+            '<html lang="en">',
+            "  <head>",
+            '    <meta charset="utf-8">',
+            '    <meta name="viewport" content="width=device-width, initial-scale=1">',
+            f"    <title>{escape(case_bundle['title'])} Graphs</title>",
+            "    <style>",
+            "      body { margin: 0; font-family: Arial, sans-serif; background: #f1f5f9; color: #0f172a; }",
+            "      main { width: min(1200px, calc(100% - 32px)); margin: 24px auto 40px; }",
+            "      h1 { margin-bottom: 8px; font-size: 2rem; }",
+            "      p { color: #475569; line-height: 1.6; max-width: 72ch; }",
+            "      .grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }",
+            "      .card { background: white; border-radius: 20px; padding: 18px; box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08); }",
+            "      .card h2 { margin: 0 0 12px; font-size: 1.05rem; }",
+            "      img { width: 100%; height: auto; border-radius: 14px; border: 1px solid #e2e8f0; }",
+            "      .meta { margin-bottom: 20px; padding: 16px 18px; background: #dbeafe; border-radius: 18px; }",
+            "    </style>",
+            "  </head>",
+            "  <body>",
+            "    <main>",
+            f"      <h1>{escape(case_bundle['title'])} Graphs</h1>",
+            f"      <p>{escape(case_bundle['description'])}</p>",
+            '      <div class="meta">',
+            f"        <div>Requests: {case_bundle['parameters'].get('request_count', 'n/a')}</div>",
+            f"        <div>Concurrency: {case_bundle['parameters'].get('concurrency', 'n/a')}</div>",
+            f"        <div>Seed count: {case_bundle['parameters'].get('seed_count', 'n/a')}</div>",
+            "      </div>",
+            '      <div class="grid">',
+            *cards,
+            "      </div>",
+            "    </main>",
+            "  </body>",
+            "</html>",
+        ]
+    )
+
+
+def generate_case_graph_files(case_bundle: dict[str, Any], output_dir: Path) -> list[Path]:
+    if case_bundle["mode"] != "benchmark":
+        return []
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    rows = []
+    for label, summary in case_bundle["runs"].items():
+        rows.append(
+            {
+                "label": label,
+                "throughput_rps": float(summary["throughput_rps"]),
+                "avg_latency_ms": float(summary["latency_ms"]["avg"]),
+                "p95_latency_ms": float(summary["latency_ms"]["p95"]),
+                "backend_node_counts": summary["backend_node_counts"],
+            }
+        )
+
+    def metric_rows(metric_key: str) -> list[dict[str, Any]]:
+        return [{"label": row["label"], "value": row[metric_key]} for row in rows]
+
+    graph_specs = [
+        {
+            "filename": "throughput.svg",
+            "title": f"{case_bundle['title']}: Throughput",
+            "subtitle": "Higher is better. Each bar corresponds to one run inside the case.",
+            "y_label": "Requests per second",
+            "rows": metric_rows("throughput_rps"),
+            "filename_label": "case metric: throughput",
+        },
+        {
+            "filename": "avg-latency.svg",
+            "title": f"{case_bundle['title']}: Average Latency",
+            "subtitle": "Lower is better. Average latency for each run in the case.",
+            "y_label": "Latency (ms)",
+            "rows": metric_rows("avg_latency_ms"),
+            "filename_label": "case metric: latency avg",
+        },
+        {
+            "filename": "p95-latency.svg",
+            "title": f"{case_bundle['title']}: P95 Latency",
+            "subtitle": "Lower is better. Tail latency for each run in the case.",
+            "y_label": "Latency (ms)",
+            "rows": metric_rows("p95_latency_ms"),
+            "filename_label": "case metric: latency p95",
+        },
+    ]
+
+    output_paths: list[Path] = []
+    for spec in graph_specs:
+        path = output_dir / spec["filename"]
+        path.write_text(
+            render_single_series_bar_chart_svg(
+                title=spec["title"],
+                subtitle=spec["subtitle"],
+                y_label=spec["y_label"],
+                rows=spec["rows"],
+                filename_label=spec["filename_label"],
+            ),
+            encoding="utf-8",
+        )
+        output_paths.append(path)
+
+    backend_segments = sorted(
+        {
+            segment_name
+            for row in rows
+            for segment_name in row["backend_node_counts"]
+        }
+    )
+    segment_colors = {
+        "backend1": "#2563eb",
+        "backend2": "#f97316",
+        "local-node": "#16a34a",
+    }
+    for segment_name in backend_segments:
+        segment_colors.setdefault(segment_name, "#6b7280")
+
+    backend_rows = [
+        {
+            "label": row["label"],
+            "sub_label": "",
+            "segments": row["backend_node_counts"],
+        }
+        for row in rows
+    ]
+    backend_path = output_dir / "backend-distribution.svg"
+    backend_path.write_text(
+        render_stacked_bar_chart_svg(
+            title=f"{case_bundle['title']}: Backend Distribution",
+            subtitle="Shows which backend served responses during the case.",
+            y_label="Responses counted",
+            rows=backend_rows,
+            segment_names=backend_segments,
+            segment_colors=segment_colors,
+        ),
+        encoding="utf-8",
+    )
+    output_paths.append(backend_path)
+
+    dashboard_path = output_dir / "graphs.html"
+    dashboard_path.write_text(
+        render_case_graph_dashboard_html(case_bundle, [path.name for path in output_paths]),
+        encoding="utf-8",
+    )
+    output_paths.append(dashboard_path)
+    return output_paths
+
+
+def render_case_markdown(case_bundle: dict[str, Any]) -> str:
+    lines = [
+        f"# {case_bundle['title']}",
+        "",
+        case_bundle["description"],
+        "",
+        f"Generated at: `{case_bundle['generated_at']}`",
+        "",
+        "## Parameters",
+        "",
+        f"- Requests: `{case_bundle['parameters'].get('request_count', 'n/a')}`",
+        f"- Concurrency: `{case_bundle['parameters'].get('concurrency', 'n/a')}`",
+        f"- Seed count: `{case_bundle['parameters'].get('seed_count', 'n/a')}`",
+        f"- Timeout seconds: `{case_bundle['parameters']['timeout_seconds']}`",
+        f"- Random seed: `{case_bundle['parameters']['random_seed']}`",
+        "",
+    ]
+
+    if case_bundle["mode"] == "manual":
+        lines.extend(
+            [
+                "## Manual Runbook",
+                "",
+                *case_bundle["manual_steps"],
+                "",
+            ]
+        )
+        if case_bundle.get("manual_commands"):
+            lines.extend(
+                [
+                    "## Commands",
+                    "",
+                    "```bash",
+                    *case_bundle["manual_commands"],
+                    "```",
+                    "",
+                ]
+            )
+        return "\n".join(lines)
+
+    if case_bundle.get("node_samples"):
+        lines.extend(
+            [
+                "## Node Samples",
+                "",
+                f"- Expected backend during failover: `{case_bundle.get('expected_backend', 'n/a')}`",
+                f"- Observed samples: `{', '.join(case_bundle['node_samples'])}`",
+                "",
+            ]
+        )
+
+    lines.extend(
+        [
+            "## Results",
+            "",
+            "| Run | Throughput (req/s) | Avg Latency (ms) | P95 Latency (ms) | Error Rate |",
+            "| --- | ---: | ---: | ---: | ---: |",
+        ]
+    )
+
+    for label, summary in case_bundle["runs"].items():
+        lines.append(
+            f"| {label} | {summary['throughput_rps']} | {summary['latency_ms']['avg']} | "
+            f"{summary['latency_ms']['p95']} | {summary['error_rate']} |"
+        )
+
+    lines.append("")
+    lines.extend(
+        [
+            "## Generated Files",
+            "",
+            "- JSON summary for the case",
+            "- Markdown summary for the case",
+            "- SVG graphs for throughput, average latency, p95 latency, and backend distribution",
+            "- `graphs.html` dashboard for quick presentation review",
+            "",
+        ]
+    )
+    if case_bundle.get("notes"):
+        lines.extend(
+            [
+            "## Notes",
+                "",
+                *[f"- {note}" for note in case_bundle["notes"]],
+                "",
+            ]
+        )
+
+    return "\n".join(lines)
+
+
+def write_case_bundle(run_dir: Path, case_name: str, case_bundle: dict[str, Any]) -> tuple[Path, Path]:
+    json_path = run_dir / f"{case_name}-case.json"
+    md_path = run_dir / f"{case_name}-case.md"
+    write_json(json_path, case_bundle)
+    md_path.write_text(render_case_markdown(case_bundle), encoding="utf-8")
+    return json_path, md_path
+
+
+def run_easy_case(
+    *,
+    single_url: str,
+    request_count: int,
+    concurrency: int,
+    seed_count: int,
+    timeout_seconds: float,
+    random_seed: int,
+) -> dict[str, Any]:
+    summary = run_benchmark(
+        base_url=single_url,
+        deployment_label="single-node",
+        scenario_name="read-heavy",
+        request_count=request_count,
+        concurrency=concurrency,
+        seed_count=seed_count,
+        timeout_seconds=timeout_seconds,
+        random_seed=random_seed,
+    )
+    return {
+        "case": "easy",
+        "mode": "benchmark",
+        "title": "Easy Case",
+        "description": CASE_PRESETS["easy"].description,
+        "generated_at": iso_utc_now(),
+        "parameters": {
+            "request_count": request_count,
+            "concurrency": concurrency,
+            "seed_count": seed_count,
+            "timeout_seconds": timeout_seconds,
+            "random_seed": random_seed,
+        },
+        "runs": {
+            "single-node / read-heavy": summary,
+        },
+        "notes": [
+            "This is the simplest benchmark path and is intended as the baseline case.",
+            "Use it to show the single-node service under a read-heavy workload before discussing distributed behavior.",
+        ],
+    }
+
+
+def run_medium_case(
+    *,
+    multi_url: str,
+    request_count: int,
+    concurrency: int,
+    seed_count: int,
+    timeout_seconds: float,
+    random_seed: int,
+) -> dict[str, Any]:
+    read_summary = run_benchmark(
+        base_url=multi_url,
+        deployment_label="multi-node",
+        scenario_name="read-heavy",
+        request_count=request_count,
+        concurrency=concurrency,
+        seed_count=seed_count,
+        timeout_seconds=timeout_seconds,
+        random_seed=random_seed,
+    )
+    shorten_summary = run_benchmark(
+        base_url=multi_url,
+        deployment_label="multi-node",
+        scenario_name="shorten-heavy",
+        request_count=request_count,
+        concurrency=concurrency,
+        seed_count=seed_count,
+        timeout_seconds=timeout_seconds,
+        random_seed=random_seed,
+    )
+    return {
+        "case": "medium",
+        "mode": "benchmark",
+        "title": "Medium Case",
+        "description": CASE_PRESETS["medium"].description,
+        "generated_at": iso_utc_now(),
+        "parameters": {
+            "request_count": request_count,
+            "concurrency": concurrency,
+            "seed_count": seed_count,
+            "timeout_seconds": timeout_seconds,
+            "random_seed": random_seed,
+        },
+        "runs": {
+            "multi-node / read-heavy": read_summary,
+            "multi-node / shorten-heavy": shorten_summary,
+        },
+        "notes": [
+            "This case keeps the service healthy but moves from one workload to two workload mixes on the load-balanced deployment.",
+            "Use it to show that the multi-node stack responds correctly under both read-heavy and shorten-heavy traffic.",
+        ],
+    }
+
+
+def run_hard_case_benchmark(
+    *,
+    multi_url: str,
+    scenario_name: str,
+    expected_backend: str,
+    node_checks: int,
+    request_count: int,
+    concurrency: int,
+    seed_count: int,
+    timeout_seconds: float,
+    random_seed: int,
+) -> dict[str, Any]:
+    node_samples = sample_backend_nodes(
+        multi_url,
+        attempts=node_checks,
+        timeout_seconds=timeout_seconds,
+    )
+    if any(sample != expected_backend for sample in node_samples):
+        raise RuntimeError(
+            "Hard case precheck failed: observed backend samples "
+            f"{node_samples}, expected only {expected_backend}. "
+            "Stop one backend first, then rerun the hard case."
+        )
+
+    summary = run_benchmark(
+        base_url=multi_url,
+        deployment_label="multi-node-failover",
+        scenario_name=scenario_name,
+        request_count=request_count,
+        concurrency=concurrency,
+        seed_count=seed_count,
+        timeout_seconds=timeout_seconds,
+        random_seed=random_seed,
+    )
+    return {
+        "case": "hard",
+        "mode": "benchmark",
+        "title": "Hard Case",
+        "description": CASE_PRESETS["hard"].description,
+        "generated_at": iso_utc_now(),
+        "parameters": {
+            "request_count": request_count,
+            "concurrency": concurrency,
+            "seed_count": seed_count,
+            "timeout_seconds": timeout_seconds,
+            "random_seed": random_seed,
+        },
+        "expected_backend": expected_backend,
+        "node_samples": node_samples,
+        "runs": {
+            f"multi-node failover / {scenario_name}": summary,
+        },
+        "notes": [
+            "This case assumes one backend has already been stopped before the benchmark begins.",
+            "The node samples above confirm nginx is serving requests only from the surviving backend before the smaller benchmark run starts.",
+        ],
+    }
+
+
+def build_hard_manual_bundle(
+    *,
+    multi_url: str,
+    manual_code: str,
+    timeout_seconds: float,
+    random_seed: int,
+) -> dict[str, Any]:
+    return {
+        "case": "hard",
+        "mode": "manual",
+        "title": "Hard Case Manual Runbook",
+        "description": CASE_PRESETS["hard"].description,
+        "generated_at": iso_utc_now(),
+        "parameters": {
+            "request_count": "manual",
+            "concurrency": "manual",
+            "seed_count": "manual",
+            "timeout_seconds": timeout_seconds,
+            "random_seed": random_seed,
+        },
+        "manual_steps": [
+            "1. Start the multi-node Docker stack if it is not already running.",
+            "2. Create a short URL before failure and save the returned code.",
+            "3. Stop `backend1` with `docker compose stop backend1`.",
+            f"4. Query `{multi_url}/api/v1/node` several times and confirm nginx now routes to `backend2` only.",
+            f"5. Request `{multi_url}/{manual_code}` and confirm the redirect still works during partial failure.",
+            f"6. Create one more short URL with `POST {multi_url}/api/v1/urls` and confirm writes still succeed.",
+        ],
+        "manual_commands": [
+            "docker compose stop backend1",
+            f"curl -i {multi_url}/api/v1/node",
+            f"curl -i {multi_url}/api/v1/node",
+            f"curl -i {multi_url}/{manual_code}",
+            (
+                f"curl -i -X POST {multi_url}/api/v1/urls "
+                '-H "Content-Type: application/json" '
+                '-d \'{"url":"https://example.com/manual-failover","expires_in_days":7}\''
+            ),
+        ],
+    }
+
+
 def print_run_summary(summary: dict[str, Any]) -> None:
     print(
         f"[{summary['deployment']}][{summary['scenario']}] "
@@ -1303,6 +1927,74 @@ def make_report_figures_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_case_command(args: argparse.Namespace) -> int:
+    base_output_dir = Path(args.output_dir)
+    run_dir = case_run_dir(base_output_dir, args.case)
+    params = resolve_case_parameters(
+        case_name=args.case,
+        requests=args.requests,
+        concurrency=args.concurrency,
+        seed_count=args.seed_count,
+    )
+
+    if args.case == "easy":
+        if not args.single_url:
+            raise RuntimeError("--single-url is required for the easy case.")
+        case_bundle = run_easy_case(
+            single_url=args.single_url,
+            request_count=params["request_count"],
+            concurrency=params["concurrency"],
+            seed_count=params["seed_count"],
+            timeout_seconds=args.timeout_seconds,
+            random_seed=args.random_seed,
+        )
+    elif args.case == "medium":
+        if not args.multi_url:
+            raise RuntimeError("--multi-url is required for the medium case.")
+        case_bundle = run_medium_case(
+            multi_url=args.multi_url,
+            request_count=params["request_count"],
+            concurrency=params["concurrency"],
+            seed_count=params["seed_count"],
+            timeout_seconds=args.timeout_seconds,
+            random_seed=args.random_seed,
+        )
+    elif args.case == "hard":
+        if not args.multi_url:
+            raise RuntimeError("--multi-url is required for the hard case.")
+        if args.hard_mode == "manual":
+            case_bundle = build_hard_manual_bundle(
+                multi_url=args.multi_url,
+                manual_code=args.manual_code,
+                timeout_seconds=args.timeout_seconds,
+                random_seed=args.random_seed,
+            )
+        else:
+            case_bundle = run_hard_case_benchmark(
+                multi_url=args.multi_url,
+                scenario_name=args.hard_scenario,
+                expected_backend=args.expected_backend,
+                node_checks=args.node_checks,
+                request_count=params["request_count"],
+                concurrency=params["concurrency"],
+                seed_count=params["seed_count"],
+                timeout_seconds=args.timeout_seconds,
+                random_seed=args.random_seed,
+            )
+    else:
+        raise RuntimeError(f"Unsupported case: {args.case}")
+
+    json_path, md_path = write_case_bundle(run_dir, args.case, case_bundle)
+    graph_paths = generate_case_graph_files(case_bundle, run_dir)
+    print(f"Saved case JSON to {json_path}")
+    print(f"Saved case Markdown to {md_path}")
+    if graph_paths:
+        print("Saved case graph files:")
+        for graph_path in graph_paths:
+            print(f"- {graph_path}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run repeatable Stage 5 benchmarks for the distributed URL shortener."
@@ -1396,6 +2088,86 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional pause between scenario runs to reduce overlap. Default: 1.0",
     )
     stage5_parser.set_defaults(handler=run_stage5_command)
+
+    case_parser = subparsers.add_parser(
+        "run-case",
+        help="Run one of the presentation/demo cases: easy, medium, or hard.",
+    )
+    case_parser.add_argument(
+        "--case",
+        choices=sorted(CASE_PRESETS),
+        required=True,
+        help="Which named case to run.",
+    )
+    case_parser.add_argument(
+        "--single-url",
+        help="Single-node base URL, used by the easy case.",
+    )
+    case_parser.add_argument(
+        "--multi-url",
+        help="Multi-node/nginx base URL, used by the medium and hard cases.",
+    )
+    case_parser.add_argument(
+        "--requests",
+        type=int,
+        help="Override the case default request count.",
+    )
+    case_parser.add_argument(
+        "--concurrency",
+        type=int,
+        help="Override the case default concurrency.",
+    )
+    case_parser.add_argument(
+        "--seed-count",
+        type=int,
+        help="Override the case default seed count.",
+    )
+    case_parser.add_argument(
+        "--timeout-seconds",
+        type=float,
+        default=5.0,
+        help="Per-request timeout in seconds. Default: 5.0",
+    )
+    case_parser.add_argument(
+        "--random-seed",
+        type=int,
+        default=4675,
+        help="Random seed for reproducible runs. Default: 4675",
+    )
+    case_parser.add_argument(
+        "--output-dir",
+        default="benchmarks/cases",
+        help="Directory where case outputs should be stored. Default: benchmarks/cases",
+    )
+    case_parser.add_argument(
+        "--hard-mode",
+        choices=("benchmark", "manual"),
+        default="benchmark",
+        help="Hard case mode: run a smaller benchmark during failover or generate a manual curl runbook. Default: benchmark",
+    )
+    case_parser.add_argument(
+        "--hard-scenario",
+        choices=sorted(SCENARIOS),
+        default="read-heavy",
+        help="Scenario to use for the hard benchmark mode. Default: read-heavy",
+    )
+    case_parser.add_argument(
+        "--expected-backend",
+        default="backend2",
+        help="Backend that should remain during the hard failover case after one node is stopped. Default: backend2",
+    )
+    case_parser.add_argument(
+        "--node-checks",
+        type=int,
+        default=3,
+        help="How many /api/v1/node samples to collect before the hard benchmark starts. Default: 3",
+    )
+    case_parser.add_argument(
+        "--manual-code",
+        default="<saved-code>",
+        help="Short code placeholder to insert into the hard manual runbook. Default: <saved-code>",
+    )
+    case_parser.set_defaults(handler=run_case_command)
 
     graphs_parser = subparsers.add_parser(
         "make-graphs",

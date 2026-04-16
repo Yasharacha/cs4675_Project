@@ -35,6 +35,10 @@ class StubBenchmarkHandler(BaseHTTPRequestHandler):
             self._send_json({"status": "ok"})
             return
 
+        if self.path == "/api/v1/node":
+            self._send_json({"instance_name": "stub-node", "database_path": "stub.db"})
+            return
+
         if self.path == "/api/v1/urls":
             payload = []
             for code, mapping in self.mappings.items():
@@ -178,6 +182,43 @@ class BenchmarkScriptTests(unittest.TestCase):
         self.assertEqual(comparison["delta"]["avg_latency_ms"], -2.0)
         self.assertEqual(comparison["delta"]["p95_latency_ms"], -5.0)
 
+    def test_sample_backend_nodes(self):
+        samples = benchmark.sample_backend_nodes(
+            self.base_url,
+            attempts=3,
+            timeout_seconds=2.0,
+        )
+
+        self.assertEqual(samples, ["stub-node", "stub-node", "stub-node"])
+
+    def test_run_easy_case(self):
+        case_bundle = benchmark.run_easy_case(
+            single_url=self.base_url,
+            request_count=12,
+            concurrency=3,
+            seed_count=4,
+            timeout_seconds=2.0,
+            random_seed=222,
+        )
+
+        self.assertEqual(case_bundle["case"], "easy")
+        self.assertIn("single-node / read-heavy", case_bundle["runs"])
+        self.assertEqual(
+            case_bundle["runs"]["single-node / read-heavy"]["request_count"], 12
+        )
+
+    def test_build_hard_manual_bundle(self):
+        case_bundle = benchmark.build_hard_manual_bundle(
+            multi_url="http://127.0.0.1:8080",
+            manual_code="abc123",
+            timeout_seconds=5.0,
+            random_seed=4675,
+        )
+
+        self.assertEqual(case_bundle["case"], "hard")
+        self.assertEqual(case_bundle["mode"], "manual")
+        self.assertIn("abc123", "\n".join(case_bundle["manual_commands"]))
+
     def test_generate_graph_files(self):
         summary_bundle = {
             "generated_at": "2026-04-15T17:36:37+00:00",
@@ -304,6 +345,57 @@ class BenchmarkScriptTests(unittest.TestCase):
             self.assertIn("Figure 1. Throughput by Workload and Deployment", figure_1.read_text(encoding="utf-8"))
             self.assertIn("Figure 1. Throughput by workload and deployment.", captions_md.read_text(encoding="utf-8"))
             self.assertIn("Stage 5 Report Figures", gallery_html.read_text(encoding="utf-8"))
+        finally:
+            shutil.rmtree(output_dir, ignore_errors=True)
+
+    def test_generate_case_graph_files(self):
+        case_bundle = {
+            "case": "medium",
+            "mode": "benchmark",
+            "title": "Medium Case",
+            "description": "Test case bundle.",
+            "generated_at": "2026-04-16T18:00:00+00:00",
+            "parameters": {
+                "request_count": 10,
+                "concurrency": 2,
+                "seed_count": 3,
+                "timeout_seconds": 2.0,
+                "random_seed": 1,
+            },
+            "runs": {
+                "multi-node / read-heavy": {
+                    "throughput_rps": 11.0,
+                    "latency_ms": {"avg": 90.0, "p95": 140.0},
+                    "backend_node_counts": {"backend1": 5, "backend2": 5},
+                    "error_rate": 0.0,
+                },
+                "multi-node / shorten-heavy": {
+                    "throughput_rps": 10.5,
+                    "latency_ms": {"avg": 95.0, "p95": 145.0},
+                    "backend_node_counts": {"backend1": 5, "backend2": 5},
+                    "error_rate": 0.0,
+                },
+            },
+            "notes": [],
+        }
+
+        output_dir = Path("test_data") / f"case-graphs-{uuid4().hex}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            output_paths = benchmark.generate_case_graph_files(case_bundle, output_dir)
+
+            self.assertEqual(len(output_paths), 5)
+            self.assertTrue((output_dir / "throughput.svg").exists())
+            self.assertTrue((output_dir / "graphs.html").exists())
+            self.assertIn(
+                "Medium Case: Throughput",
+                (output_dir / "throughput.svg").read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                "Medium Case Graphs",
+                (output_dir / "graphs.html").read_text(encoding="utf-8"),
+            )
         finally:
             shutil.rmtree(output_dir, ignore_errors=True)
 

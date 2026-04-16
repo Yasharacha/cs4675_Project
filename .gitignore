@@ -6,3 +6,5 @@ test_data/
 .venv/
 .env
 benchmarks/results/
+benchmarks/cases/
+benchmarks/cases-smoke/

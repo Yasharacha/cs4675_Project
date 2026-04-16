@@ -395,6 +395,108 @@ This creates a `report-figures/` folder with:
 - `report-figure-captions.md` with report-ready figure captions and a suggested results paragraph
 - `report-figures.html` for quick review in a browser
 
+### Easy, Medium, Hard Demo Cases
+
+If you want to present the system as progressively harder cases instead of one full benchmark suite, use the built-in case runner.
+
+Latest measured case results are summarized in [CASE_RESULTS.md](/C:/Users/yasha/cs4675_proj/cs4675_Project/CASE_RESULTS.md).
+
+#### Easy Case
+
+Single-node baseline with one read-heavy benchmark.
+
+```bash
+uv run python benchmark.py run-case \
+  --case easy \
+  --single-url http://127.0.0.1:5000
+```
+
+What it shows:
+
+- the single-node app is healthy
+- the benchmark runner works
+- one simple read-heavy workload against the baseline deployment
+
+What it generates:
+
+- `benchmarks/cases/<timestamp>/easy-case.json`
+- `benchmarks/cases/<timestamp>/easy-case.md`
+- case statistics plus SVG graphs and `graphs.html`
+
+#### Medium Case
+
+Healthy multi-node benchmark covering both read-heavy and shorten-heavy traffic through nginx.
+
+```bash
+uv run python benchmark.py run-case \
+  --case medium \
+  --multi-url http://127.0.0.1:8080
+```
+
+What it shows:
+
+- the nginx deployment is healthy
+- both workload mixes run successfully on the multi-node stack
+- the system handles both read-heavy and shorten-heavy traffic without inducing failure
+
+What it generates:
+
+- `benchmarks/cases/<timestamp>/medium-case.json`
+- `benchmarks/cases/<timestamp>/medium-case.md`
+- case statistics plus SVG graphs and `graphs.html`
+
+#### Hard Case
+
+Stop one backend first, then either run a smaller failover benchmark or use a manual curl-driven demo.
+
+Stop one backend:
+
+```bash
+docker compose stop backend1
+```
+
+Smaller failover benchmark:
+
+```bash
+uv run python benchmark.py run-case \
+  --case hard \
+  --multi-url http://127.0.0.1:8080 \
+  --hard-mode benchmark \
+  --hard-scenario read-heavy
+```
+
+Manual curl runbook output:
+
+```bash
+uv run python benchmark.py run-case \
+  --case hard \
+  --multi-url http://127.0.0.1:8080 \
+  --hard-mode manual \
+  --manual-code <saved-code>
+```
+
+What it shows:
+
+- partial-failure behavior after one backend is stopped
+- nginx failover to the surviving backend
+- either a smaller benchmark run during failure or a presentation-friendly manual runbook with curl commands
+
+What it generates:
+
+- benchmark mode:
+  `benchmarks/cases/<timestamp>/hard-case.json` and `hard-case.md`
+  This contains a smaller failover benchmark summary plus SVG graphs and `graphs.html`.
+- manual mode:
+  `benchmarks/cases/<timestamp>/hard-case.json` and `hard-case.md`
+  This contains a manual runbook and curl commands, not benchmark metrics.
+
+If you want graphs, use the full Stage 5 workflow:
+
+```bash
+uv run python benchmark.py run-stage5 --single-url http://127.0.0.1:5000 --multi-url http://127.0.0.1:8080
+uv run python benchmark.py make-graphs --summary-json benchmarks/results/<timestamp>/stage5-summary.json
+```
+
 ### Stage 5 Metrics
 
 Each benchmark result includes:
