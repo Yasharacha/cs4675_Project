@@ -558,6 +558,14 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def normalize_concurrency_levels(levels: list[int]) -> list[int]:
+    if not levels:
+        raise RuntimeError("At least one concurrency level is required.")
+    if any(level <= 0 for level in levels):
+        raise RuntimeError("Concurrency levels must all be positive integers.")
+    return sorted(set(levels))
+
+
 def render_markdown_report(summary_bundle: dict[str, Any]) -> str:
     lines = [
         "# Stage 5 Benchmark Summary",
@@ -750,6 +758,116 @@ def render_grouped_bar_chart_svg(
     legend_y = 56
     for index, (_series_key, label, color) in enumerate(series):
         y = legend_y + index * 22
+        parts.append(
+            f'<rect x="{legend_x}" y="{y - 10}" width="14" height="14" rx="3" fill="{color}" />'
+        )
+        parts.append(
+            f'<text x="{legend_x + 22}" y="{y + 1}" class="legend">{escape(label)}</text>'
+        )
+
+    for row_index, row in enumerate(rows):
+        group_x = margin_left + row_index * group_width + (group_width - total_bar_width) / 2
+        category_center = margin_left + row_index * group_width + group_width / 2
+
+        for series_index, (series_key, _label, color) in enumerate(series):
+            value = float(row[series_key])
+            bar_height = 0 if max_value == 0 else (value / max_value) * plot_height
+            x = group_x + series_index * (bar_width + bar_gap)
+            y = margin_top + plot_height - bar_height
+            parts.append(
+                f'<rect x="{x:.2f}" y="{y:.2f}" width="{bar_width:.2f}" height="{bar_height:.2f}" rx="10" fill="{color}" />'
+            )
+            parts.append(
+                f'<text x="{x + bar_width / 2:.2f}" y="{max(y - 8, margin_top + 14):.2f}" text-anchor="middle" class="value">{value:.3f}</text>'
+            )
+
+        parts.append(
+            f'<text x="{category_center:.2f}" y="{height - 32}" text-anchor="middle" class="label">{escape(str(row["category"]))}</text>'
+        )
+
+    parts.append("</svg>")
+    return "\n".join(parts)
+
+
+def render_multi_series_grouped_bar_chart_svg(
+    *,
+    title: str,
+    subtitle: str,
+    y_label: str,
+    rows: list[dict[str, Any]],
+    series: list[tuple[str, str, str]],
+    filename_label: str,
+) -> str:
+    width = 1240
+    height = 620
+    margin_top = 84
+    margin_right = 260
+    margin_bottom = 96
+    margin_left = 88
+    plot_width = width - margin_left - margin_right
+    plot_height = height - margin_top - margin_bottom
+
+    max_value = max(
+        (
+            float(row[series_key])
+            for row in rows
+            for series_key, _label, _color in series
+        ),
+        default=0.0,
+    )
+    max_value = max_value * 1.15 if max_value else 1.0
+
+    group_width = plot_width / max(len(rows), 1)
+    bar_gap = 8
+    total_gap = bar_gap * max(len(series) - 1, 0)
+    bar_width = min(52, max((group_width * 0.78 - total_gap) / max(len(series), 1), 10))
+    total_bar_width = len(series) * bar_width + total_gap
+    grid_steps = 5
+
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img" aria-label="{escape(title)}">',
+        "<defs>",
+        '<style>',
+        ".title { font: 700 26px Arial, sans-serif; fill: #14213d; }",
+        ".subtitle { font: 400 14px Arial, sans-serif; fill: #5b6472; }",
+        ".axis { font: 12px Arial, sans-serif; fill: #334155; }",
+        ".label { font: 600 13px Arial, sans-serif; fill: #1f2937; }",
+        ".value { font: 600 12px Arial, sans-serif; fill: #0f172a; }",
+        ".legend { font: 600 13px Arial, sans-serif; fill: #1f2937; }",
+        ".grid { stroke: #d8dee9; stroke-width: 1; }",
+        ".axis-line { stroke: #94a3b8; stroke-width: 1.2; }",
+        "</style>",
+        "</defs>",
+        f'<rect width="{width}" height="{height}" fill="#f8fafc" />',
+        f'<text x="{margin_left}" y="36" class="title">{escape(title)}</text>',
+        f'<text x="{margin_left}" y="58" class="subtitle">{escape(subtitle)}</text>',
+        f'<text x="{width - margin_right + 200}" y="36" text-anchor="end" class="subtitle">{escape(filename_label)}</text>',
+    ]
+
+    for step in range(grid_steps + 1):
+        y = margin_top + plot_height - (plot_height * step / grid_steps)
+        value = max_value * step / grid_steps
+        parts.append(
+            f'<line x1="{margin_left}" y1="{y:.2f}" x2="{width - margin_right}" y2="{y:.2f}" class="grid" />'
+        )
+        parts.append(
+            f'<text x="{margin_left - 12}" y="{y + 4:.2f}" text-anchor="end" class="axis">{value:.0f}</text>'
+        )
+
+    parts.append(
+        f'<line x1="{margin_left}" y1="{margin_top}" x2="{margin_left}" y2="{margin_top + plot_height}" class="axis-line" />'
+    )
+    parts.append(
+        f'<line x1="{margin_left}" y1="{margin_top + plot_height}" x2="{width - margin_right}" y2="{margin_top + plot_height}" class="axis-line" />'
+    )
+    parts.append(
+        f'<text x="20" y="{margin_top + plot_height / 2:.2f}" transform="rotate(-90 20 {margin_top + plot_height / 2:.2f})" class="label">{escape(y_label)}</text>'
+    )
+
+    legend_x = width - margin_right + 24
+    legend_y = 92
+    for index, (_series_key, label, color) in enumerate(series):
+        y = legend_y + index * 24
         parts.append(
             f'<rect x="{legend_x}" y="{y - 10}" width="14" height="14" rx="3" fill="{color}" />'
         )
@@ -1108,6 +1226,235 @@ def generate_graph_files(summary_bundle: dict[str, Any], output_dir: Path) -> li
     dashboard_path = output_dir / "graphs.html"
     dashboard_path.write_text(
         render_graph_dashboard_html(summary_bundle, [path.name for path in output_paths]),
+        encoding="utf-8",
+    )
+    output_paths.append(dashboard_path)
+    return output_paths
+
+
+def concurrency_chart_series() -> list[tuple[str, str, str]]:
+    return [
+        ("single-node:read-heavy", "Single / Read", "#1d4ed8"),
+        ("multi-node:read-heavy", "Multi / Read", "#60a5fa"),
+        ("single-node:shorten-heavy", "Single / Shorten", "#c2410c"),
+        ("multi-node:shorten-heavy", "Multi / Shorten", "#fdba74"),
+    ]
+
+
+def concurrency_metric_rows(
+    summary_bundle: dict[str, Any],
+    metric_path: tuple[str, ...],
+) -> list[dict[str, Any]]:
+    rows = []
+    for concurrency in summary_bundle["concurrency_levels"]:
+        row = {"category": f"C={concurrency}"}
+        for deployment_key in ("single-node", "multi-node"):
+            for scenario_name in SCENARIOS:
+                value: Any = summary_bundle["runs"][deployment_key][scenario_name][str(concurrency)]
+                for key in metric_path:
+                    value = value[key]
+                row[f"{deployment_key}:{scenario_name}"] = float(value)
+        rows.append(row)
+    return rows
+
+
+def render_concurrency_markdown_report(summary_bundle: dict[str, Any]) -> str:
+    lines = [
+        "# Controlled Concurrency Study",
+        "",
+        f"Generated at: `{summary_bundle['generated_at']}`",
+        "",
+        "## Experimental Control",
+        "",
+        "- This study varies only concurrency.",
+        f"- Requests per run were fixed at `{summary_bundle['parameters']['request_count']}`.",
+        f"- Seed URLs per run were fixed at `{summary_bundle['parameters']['seed_count']}`.",
+        f"- Timeout seconds were fixed at `{summary_bundle['parameters']['timeout_seconds']}`.",
+        f"- Random seed was fixed at `{summary_bundle['parameters']['random_seed']}`.",
+        f"- Concurrency levels tested: `{', '.join(str(level) for level in summary_bundle['concurrency_levels'])}`.",
+        "",
+    ]
+
+    for scenario_name in SCENARIOS:
+        lines.extend(
+            [
+                f"## {scenario_title(scenario_name)}",
+                "",
+                SCENARIOS[scenario_name].description,
+                "",
+                "| Concurrency | Single Throughput (req/s) | Multi Throughput (req/s) | Single Avg (ms) | Multi Avg (ms) | Single P95 (ms) | Multi P95 (ms) | Single Error | Multi Error |",
+                "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+            ]
+        )
+
+        for concurrency in summary_bundle["concurrency_levels"]:
+            concurrency_key = str(concurrency)
+            single_summary = summary_bundle["runs"]["single-node"][scenario_name][concurrency_key]
+            multi_summary = summary_bundle["runs"]["multi-node"][scenario_name][concurrency_key]
+            lines.append(
+                f"| {concurrency} | {single_summary['throughput_rps']} | {multi_summary['throughput_rps']} | "
+                f"{single_summary['latency_ms']['avg']} | {multi_summary['latency_ms']['avg']} | "
+                f"{single_summary['latency_ms']['p95']} | {multi_summary['latency_ms']['p95']} | "
+                f"{single_summary['error_rate']} | {multi_summary['error_rate']} |"
+            )
+
+        lines.extend(
+            [
+                "",
+                "Observed comparison by concurrency:",
+            ]
+        )
+        for concurrency in summary_bundle["concurrency_levels"]:
+            comparison = summary_bundle["comparisons"][scenario_name][str(concurrency)]
+            throughput_delta = comparison["delta"]["throughput_rps"]
+            avg_latency_delta = comparison["delta"]["avg_latency_ms"]
+            p95_latency_delta = comparison["delta"]["p95_latency_ms"]
+            error_delta = comparison["delta"]["error_rate"]
+            lines.append(
+                (
+                    f"- Concurrency `{concurrency}`: multi-node {trend_word(throughput_delta, 'improved', 'reduced')} "
+                    f"throughput by `{abs(throughput_delta)}` req/s, "
+                    f"{trend_word(-avg_latency_delta, 'reduced', 'increased')} average latency by `{abs(avg_latency_delta)}` ms, "
+                    f"{trend_word(-p95_latency_delta, 'reduced', 'increased')} p95 latency by `{abs(p95_latency_delta)}` ms, "
+                    f"and had error-rate delta `{error_delta}`."
+                )
+            )
+        lines.append("")
+
+    lines.extend(
+        [
+            "## Interpretation",
+            "",
+            "- This experiment is intended for controlled performance evaluation rather than a presentation-only smoke test.",
+            "- Use it to discuss how latency and throughput respond as parallel request pressure increases.",
+            "- Compare read-heavy and shorten-heavy behavior separately, because write-heavy traffic may hit the shared SQLite layer differently.",
+            "",
+            "## Current Limitations",
+            "",
+            "- The deployment still shares one SQLite persistence layer, so concurrency scaling can be limited by storage coordination.",
+            "- The study captures application-visible metrics, not CPU, memory, or disk counters.",
+            "- Synthetic workloads are consistent and useful for controlled comparisons, but they do not replace real user traffic traces.",
+            "",
+        ]
+    )
+
+    return "\n".join(lines)
+
+
+def render_concurrency_graph_dashboard_html(
+    summary_bundle: dict[str, Any],
+    graph_files: list[str],
+) -> str:
+    cards = []
+    for graph_file in graph_files:
+        cards.append(
+            "\n".join(
+                [
+                    '<section class="card">',
+                    f'  <h2>{escape(graph_file.replace("-", " ").replace(".svg", "").title())}</h2>',
+                    f'  <img src="{escape(graph_file)}" alt="{escape(graph_file)}">',
+                    "</section>",
+                ]
+            )
+        )
+
+    return "\n".join(
+        [
+            "<!doctype html>",
+            '<html lang="en">',
+            "  <head>",
+            '    <meta charset="utf-8">',
+            '    <meta name="viewport" content="width=device-width, initial-scale=1">',
+            "    <title>Controlled Concurrency Study Graphs</title>",
+            "    <style>",
+            "      body { margin: 0; font-family: Arial, sans-serif; background: #f1f5f9; color: #0f172a; }",
+            "      main { width: min(1280px, calc(100% - 32px)); margin: 24px auto 40px; }",
+            "      h1 { margin-bottom: 8px; font-size: 2rem; }",
+            "      p { color: #475569; line-height: 1.6; max-width: 76ch; }",
+            "      .grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }",
+            "      .card { background: white; border-radius: 20px; padding: 18px; box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08); }",
+            "      .card h2 { margin: 0 0 12px; font-size: 1.05rem; }",
+            "      img { width: 100%; height: auto; border-radius: 14px; border: 1px solid #e2e8f0; }",
+            "      .meta { margin-bottom: 20px; padding: 16px 18px; background: #dbeafe; border-radius: 18px; }",
+            "    </style>",
+            "  </head>",
+            "  <body>",
+            "    <main>",
+            "      <h1>Controlled Concurrency Study Graphs</h1>",
+            f"      <p>Generated from the controlled concurrency summary bundle at <strong>{escape(summary_bundle['generated_at'])}</strong>.</p>",
+            '      <div class="meta">',
+            f"        <div>Requests per run: {summary_bundle['parameters']['request_count']}</div>",
+            f"        <div>Seed URLs per run: {summary_bundle['parameters']['seed_count']}</div>",
+            f"        <div>Concurrency levels: {', '.join(str(level) for level in summary_bundle['concurrency_levels'])}</div>",
+            "      </div>",
+            '      <div class="grid">',
+            *cards,
+            "      </div>",
+            "    </main>",
+            "  </body>",
+            "</html>",
+        ]
+    )
+
+
+def generate_concurrency_graph_files(summary_bundle: dict[str, Any], output_dir: Path) -> list[Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    series = concurrency_chart_series()
+    chart_specs = [
+        {
+            "title": "Throughput by Concurrency",
+            "subtitle": "Higher is better. Each group uses the same workload mix and request count while concurrency changes.",
+            "y_label": "Requests per second",
+            "rows": concurrency_metric_rows(summary_bundle, ("throughput_rps",)),
+            "filename": "throughput-by-concurrency.svg",
+            "filename_label": "metric: throughput_rps",
+        },
+        {
+            "title": "Average Latency by Concurrency",
+            "subtitle": "Lower is better. Average end-to-end latency under each concurrency level.",
+            "y_label": "Latency (ms)",
+            "rows": concurrency_metric_rows(summary_bundle, ("latency_ms", "avg")),
+            "filename": "avg-latency-by-concurrency.svg",
+            "filename_label": "metric: latency_ms.avg",
+        },
+        {
+            "title": "P95 Latency by Concurrency",
+            "subtitle": "Lower is better. Tail latency highlights how the system behaves under heavier parallel pressure.",
+            "y_label": "Latency (ms)",
+            "rows": concurrency_metric_rows(summary_bundle, ("latency_ms", "p95")),
+            "filename": "p95-latency-by-concurrency.svg",
+            "filename_label": "metric: latency_ms.p95",
+        },
+        {
+            "title": "Error Rate by Concurrency",
+            "subtitle": "Lower is better. This should remain near zero as concurrency changes.",
+            "y_label": "Error rate",
+            "rows": concurrency_metric_rows(summary_bundle, ("error_rate",)),
+            "filename": "error-rate-by-concurrency.svg",
+            "filename_label": "metric: error_rate",
+        },
+    ]
+
+    output_paths: list[Path] = []
+    for spec in chart_specs:
+        chart_path = output_dir / spec["filename"]
+        chart_path.write_text(
+            render_multi_series_grouped_bar_chart_svg(
+                title=spec["title"],
+                subtitle=spec["subtitle"],
+                y_label=spec["y_label"],
+                rows=spec["rows"],
+                series=series,
+                filename_label=spec["filename_label"],
+            ),
+            encoding="utf-8",
+        )
+        output_paths.append(chart_path)
+
+    dashboard_path = output_dir / "graphs.html"
+    dashboard_path.write_text(
+        render_concurrency_graph_dashboard_html(summary_bundle, [path.name for path in output_paths]),
         encoding="utf-8",
     )
     output_paths.append(dashboard_path)
@@ -1510,6 +1857,263 @@ def generate_case_graph_files(case_bundle: dict[str, Any], output_dir: Path) -> 
     return output_paths
 
 
+def case_run_display_label(
+    case_bundle: dict[str, Any],
+    run_label: str,
+    summary: dict[str, Any],
+) -> str:
+    case_name = str(case_bundle.get("case", "")).lower()
+    scenario_name = str(summary.get("scenario", "")).strip()
+
+    if case_name == "easy":
+        return "Easy: Single-node Read-Heavy"
+    if case_name == "medium" and scenario_name:
+        return f"Medium: {scenario_title(scenario_name)}"
+    if case_name == "hard" and scenario_name:
+        return f"Hard: Failover {scenario_title(scenario_name)}"
+    if scenario_name:
+        return f"{case_bundle.get('title', 'Case')}: {scenario_title(scenario_name)}"
+    return f"{case_bundle.get('title', 'Case')}: {run_label}"
+
+
+def build_case_comparison_bundle(
+    case_sources: list[tuple[Path, dict[str, Any]]],
+) -> dict[str, Any]:
+    case_order = {"easy": 0, "medium": 1, "hard": 2}
+    scenario_order = {name: index for index, name in enumerate(SCENARIOS)}
+
+    runs: list[dict[str, Any]] = []
+    skipped_cases: list[dict[str, str]] = []
+
+    for source_path, case_bundle in case_sources:
+        if case_bundle.get("mode") != "benchmark":
+            skipped_cases.append(
+                {
+                    "title": str(case_bundle.get("title", source_path.stem)),
+                    "source_file": str(source_path),
+                    "reason": "Manual case has no benchmark metrics to chart.",
+                }
+            )
+            continue
+
+        for run_label, summary in case_bundle.get("runs", {}).items():
+            runs.append(
+                {
+                    "case": str(case_bundle.get("case", "unknown")),
+                    "title": str(case_bundle.get("title", "Case")),
+                    "label": case_run_display_label(case_bundle, run_label, summary),
+                    "deployment": str(summary.get("deployment", "")),
+                    "scenario": str(summary.get("scenario", "")),
+                    "source_file": str(source_path),
+                    "throughput_rps": float(summary["throughput_rps"]),
+                    "avg_latency_ms": float(summary["latency_ms"]["avg"]),
+                    "p95_latency_ms": float(summary["latency_ms"]["p95"]),
+                    "error_rate": float(summary["error_rate"]),
+                }
+            )
+
+    runs.sort(
+        key=lambda row: (
+            case_order.get(row["case"], 99),
+            scenario_order.get(row["scenario"], 99),
+            row["label"],
+        )
+    )
+
+    description = (
+        "Combined comparison across the current easy, medium, and hard benchmark-mode case runs. "
+        "The hard manual failover demo is excluded from metric graphs because it does not produce "
+        "throughput, latency, or error-rate measurements."
+    )
+
+    return {
+        "title": "Easy, Medium, and Hard Benchmark Comparison",
+        "description": description,
+        "generated_at": iso_utc_now(),
+        "source_files": [str(path) for path, _bundle in case_sources],
+        "runs": runs,
+        "skipped_cases": skipped_cases,
+    }
+
+
+def render_case_comparison_dashboard_html(
+    comparison_bundle: dict[str, Any],
+    graph_files: list[str],
+) -> str:
+    cards = []
+    for graph_file in graph_files:
+        cards.append(
+            "\n".join(
+                [
+                    '<section class="card">',
+                    f'  <h2>{escape(graph_file.replace("-", " ").replace(".svg", "").title())}</h2>',
+                    f'  <img src="{escape(graph_file)}" alt="{escape(graph_file)}">',
+                    "</section>",
+                ]
+            )
+        )
+
+    source_items = "\n".join(
+        f"          <li>{escape(source_file)}</li>"
+        for source_file in comparison_bundle["source_files"]
+    )
+
+    skipped_block = ""
+    if comparison_bundle.get("skipped_cases"):
+        skipped_items = "\n".join(
+            (
+                "          <li>"
+                f"{escape(skipped_case['title'])}: "
+                f"{escape(skipped_case['reason'])} "
+                f"({escape(skipped_case['source_file'])})"
+                "</li>"
+            )
+            for skipped_case in comparison_bundle["skipped_cases"]
+        )
+        skipped_block = "\n".join(
+            [
+                '      <section class="meta warn">',
+                "        <strong>Skipped inputs</strong>",
+                "        <ul>",
+                skipped_items,
+                "        </ul>",
+                "      </section>",
+            ]
+        )
+
+    included_labels = ", ".join(run["label"] for run in comparison_bundle["runs"])
+
+    return "\n".join(
+        [
+            "<!doctype html>",
+            '<html lang="en">',
+            "  <head>",
+            '    <meta charset="utf-8">',
+            '    <meta name="viewport" content="width=device-width, initial-scale=1">',
+            f"    <title>{escape(comparison_bundle['title'])}</title>",
+            "    <style>",
+            "      body { margin: 0; font-family: Arial, sans-serif; background: #f1f5f9; color: #0f172a; }",
+            "      main { width: min(1240px, calc(100% - 32px)); margin: 24px auto 40px; }",
+            "      h1 { margin-bottom: 8px; font-size: 2rem; }",
+            "      p { color: #475569; line-height: 1.6; max-width: 78ch; }",
+            "      ul { margin: 8px 0 0 20px; color: #334155; }",
+            "      .grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }",
+            "      .card { background: white; border-radius: 20px; padding: 18px; box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08); }",
+            "      .card h2 { margin: 0 0 12px; font-size: 1.05rem; }",
+            "      img { width: 100%; height: auto; border-radius: 14px; border: 1px solid #e2e8f0; }",
+            "      .meta { margin-bottom: 18px; padding: 16px 18px; background: #dbeafe; border-radius: 18px; }",
+            "      .warn { background: #fef3c7; }",
+            "      .mono { font-family: Consolas, 'Courier New', monospace; font-size: 0.95rem; }",
+            "    </style>",
+            "  </head>",
+            "  <body>",
+            "    <main>",
+            f"      <h1>{escape(comparison_bundle['title'])}</h1>",
+            f"      <p>{escape(comparison_bundle['description'])}</p>",
+            '      <section class="meta">',
+            f"        <div><strong>Compared benchmark runs:</strong> {len(comparison_bundle['runs'])}</div>",
+            f"        <div><strong>Labels:</strong> {escape(included_labels)}</div>",
+            f"        <div><strong>Generated at:</strong> {escape(comparison_bundle['generated_at'])}</div>",
+            "      </section>",
+            '      <section class="meta">',
+            "        <strong>Source case files</strong>",
+            "        <ul class=\"mono\">",
+            source_items,
+            "        </ul>",
+            "      </section>",
+            skipped_block,
+            '      <div class="grid">',
+            *cards,
+            "      </div>",
+            "    </main>",
+            "  </body>",
+            "</html>",
+        ]
+    )
+
+
+def generate_case_comparison_graph_files(
+    comparison_bundle: dict[str, Any],
+    output_dir: Path,
+) -> list[Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if not comparison_bundle["runs"]:
+        raise RuntimeError("No benchmark-mode case runs were available to graph.")
+
+    def metric_rows(metric_key: str) -> list[dict[str, Any]]:
+        return [
+            {"label": run["label"], "value": run[metric_key]}
+            for run in comparison_bundle["runs"]
+        ]
+
+    graph_specs = [
+        {
+            "filename": "throughput.svg",
+            "title": "Easy, Medium, and Hard: Throughput",
+            "subtitle": "Higher is better. Compares each benchmark-mode presentation run side by side.",
+            "y_label": "Requests per second",
+            "rows": metric_rows("throughput_rps"),
+            "filename_label": "combined metric: throughput",
+            "color": "#1d4ed8",
+        },
+        {
+            "filename": "avg-latency.svg",
+            "title": "Easy, Medium, and Hard: Average Latency",
+            "subtitle": "Lower is better. Average end-to-end latency for each compared run.",
+            "y_label": "Latency (ms)",
+            "rows": metric_rows("avg_latency_ms"),
+            "filename_label": "combined metric: latency avg",
+            "color": "#ea580c",
+        },
+        {
+            "filename": "p95-latency.svg",
+            "title": "Easy, Medium, and Hard: P95 Latency",
+            "subtitle": "Lower is better. Tail latency shows worst-case response behavior.",
+            "y_label": "Latency (ms)",
+            "rows": metric_rows("p95_latency_ms"),
+            "filename_label": "combined metric: latency p95",
+            "color": "#0f766e",
+        },
+        {
+            "filename": "error-rate.svg",
+            "title": "Easy, Medium, and Hard: Error Rate",
+            "subtitle": "Lower is better. This should stay near zero across healthy and failover runs.",
+            "y_label": "Error rate",
+            "rows": metric_rows("error_rate"),
+            "filename_label": "combined metric: error rate",
+            "color": "#b91c1c",
+        },
+    ]
+
+    output_paths: list[Path] = []
+    for spec in graph_specs:
+        path = output_dir / spec["filename"]
+        path.write_text(
+            render_single_series_bar_chart_svg(
+                title=spec["title"],
+                subtitle=spec["subtitle"],
+                y_label=spec["y_label"],
+                rows=spec["rows"],
+                filename_label=spec["filename_label"],
+                color=spec["color"],
+            ),
+            encoding="utf-8",
+        )
+        output_paths.append(path)
+
+    dashboard_path = output_dir / "graphs.html"
+    dashboard_path.write_text(
+        render_case_comparison_dashboard_html(
+            comparison_bundle,
+            [path.name for path in output_paths],
+        ),
+        encoding="utf-8",
+    )
+    output_paths.append(dashboard_path)
+    return output_paths
+
+
 def render_case_markdown(case_bundle: dict[str, Any]) -> str:
     lines = [
         f"# {case_bundle['title']}",
@@ -1832,6 +2436,75 @@ def run_single_scenario_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_concurrency_study(
+    *,
+    single_url: str,
+    multi_url: str,
+    request_count: int,
+    concurrency_levels: list[int],
+    seed_count: int,
+    timeout_seconds: float,
+    random_seed: int,
+    pause_seconds: float,
+    run_dir: Path | None = None,
+) -> dict[str, Any]:
+    normalized_levels = normalize_concurrency_levels(concurrency_levels)
+    runs: dict[str, dict[str, dict[str, Any]]] = {
+        deployment_key: {scenario_name: {} for scenario_name in SCENARIOS}
+        for deployment_key in ("single-node", "multi-node")
+    }
+
+    for concurrency in normalized_levels:
+        for deployment_label, base_url in (
+            ("single-node", single_url),
+            ("multi-node", multi_url),
+        ):
+            for scenario_name in SCENARIOS:
+                summary = run_benchmark(
+                    base_url=base_url,
+                    deployment_label=deployment_label,
+                    scenario_name=scenario_name,
+                    request_count=request_count,
+                    concurrency=concurrency,
+                    seed_count=seed_count,
+                    timeout_seconds=timeout_seconds,
+                    random_seed=random_seed,
+                )
+                runs[deployment_label][scenario_name][str(concurrency)] = summary
+                if run_dir is not None:
+                    result_path = run_dir / f"{deployment_label}-{scenario_name}-c{concurrency}.json"
+                    write_json(result_path, summary)
+                print_run_summary(summary)
+
+                if pause_seconds:
+                    time.sleep(pause_seconds)
+
+    comparisons = {
+        scenario_name: {
+            str(concurrency): compare_summaries(
+                runs["single-node"][scenario_name][str(concurrency)],
+                runs["multi-node"][scenario_name][str(concurrency)],
+            )
+            for concurrency in normalized_levels
+        }
+        for scenario_name in SCENARIOS
+    }
+
+    return {
+        "generated_at": iso_utc_now(),
+        "experiment": "controlled-concurrency-study",
+        "parameters": {
+            "request_count": request_count,
+            "seed_count": seed_count,
+            "timeout_seconds": timeout_seconds,
+            "random_seed": random_seed,
+        },
+        "concurrency_levels": normalized_levels,
+        "runs": runs,
+        "comparisons": comparisons,
+    }
+
+
 def run_stage5_command(args: argparse.Namespace) -> int:
     output_dir = Path(args.output_dir)
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -1904,11 +2577,57 @@ def run_stage5_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_concurrency_study_command(args: argparse.Namespace) -> int:
+    output_dir = Path(args.output_dir)
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    run_dir = output_dir / timestamp
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    summary_bundle = run_concurrency_study(
+        single_url=args.single_url,
+        multi_url=args.multi_url,
+        request_count=args.requests,
+        concurrency_levels=args.concurrency_level or [4, 8, 16],
+        seed_count=args.seed_count,
+        timeout_seconds=args.timeout_seconds,
+        random_seed=args.random_seed,
+        pause_seconds=args.pause_seconds,
+        run_dir=run_dir,
+    )
+
+    summary_json_path = run_dir / "concurrency-study-summary.json"
+    summary_md_path = run_dir / "concurrency-study-summary.md"
+    write_json(summary_json_path, summary_bundle)
+    summary_md_path.write_text(
+        render_concurrency_markdown_report(summary_bundle),
+        encoding="utf-8",
+    )
+    graph_paths = generate_concurrency_graph_files(summary_bundle, run_dir)
+
+    print(f"Saved concurrency study JSON to {summary_json_path}")
+    print(f"Saved concurrency study Markdown to {summary_md_path}")
+    print("Saved graph files:")
+    for graph_path in graph_paths:
+        print(f"- {graph_path}")
+    return 0
+
+
 def make_graphs_command(args: argparse.Namespace) -> int:
     summary_json_path = Path(args.summary_json)
     summary_bundle = json.loads(summary_json_path.read_text(encoding="utf-8"))
     output_dir = Path(args.output_dir) if args.output_dir else summary_json_path.parent
     graph_paths = generate_graph_files(summary_bundle, output_dir)
+    print("Saved graph files:")
+    for graph_path in graph_paths:
+        print(f"- {graph_path}")
+    return 0
+
+
+def make_concurrency_graphs_command(args: argparse.Namespace) -> int:
+    summary_json_path = Path(args.summary_json)
+    summary_bundle = json.loads(summary_json_path.read_text(encoding="utf-8"))
+    output_dir = Path(args.output_dir) if args.output_dir else summary_json_path.parent
+    graph_paths = generate_concurrency_graph_files(summary_bundle, output_dir)
     print("Saved graph files:")
     for graph_path in graph_paths:
         print(f"- {graph_path}")
@@ -1924,6 +2643,43 @@ def make_report_figures_command(args: argparse.Namespace) -> int:
     print("Saved report figure files:")
     for output_path in output_paths:
         print(f"- {output_path}")
+    return 0
+
+
+def make_case_comparison_graphs_command(args: argparse.Namespace) -> int:
+    case_sources = []
+    for case_json in args.case_json:
+        case_json_path = Path(case_json)
+        case_sources.append(
+            (
+                case_json_path,
+                json.loads(case_json_path.read_text(encoding="utf-8")),
+            )
+        )
+
+    comparison_bundle = build_case_comparison_bundle(case_sources)
+    default_output = (
+        case_sources[0][0].parent.parent
+        / f"combined-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    )
+    output_dir = Path(args.output_dir) if args.output_dir else default_output
+
+    summary_path = output_dir / "combined-case-summary.json"
+    write_json(summary_path, comparison_bundle)
+    output_paths = generate_case_comparison_graph_files(comparison_bundle, output_dir)
+
+    print(f"Saved combined case summary to {summary_path}")
+    print("Saved combined graph files:")
+    for output_path in output_paths:
+        print(f"- {output_path}")
+
+    if comparison_bundle.get("skipped_cases"):
+        print("Skipped non-benchmark inputs:")
+        for skipped_case in comparison_bundle["skipped_cases"]:
+            print(
+                f"- {skipped_case['title']}: {skipped_case['reason']} "
+                f"({skipped_case['source_file']})"
+            )
     return 0
 
 
@@ -2033,6 +2789,32 @@ def build_parser() -> argparse.ArgumentParser:
         help="Random seed for reproducible request mixes. Default: 4675",
     )
 
+    study_parent = argparse.ArgumentParser(add_help=False)
+    study_parent.add_argument(
+        "--requests",
+        type=int,
+        default=400,
+        help="Number of timed requests to issue per run. Default: 400",
+    )
+    study_parent.add_argument(
+        "--seed-count",
+        type=int,
+        default=100,
+        help="How many short URLs to create before each timed run. Default: 100",
+    )
+    study_parent.add_argument(
+        "--timeout-seconds",
+        type=float,
+        default=5.0,
+        help="Per-request timeout in seconds. Default: 5.0",
+    )
+    study_parent.add_argument(
+        "--random-seed",
+        type=int,
+        default=4675,
+        help="Random seed for reproducible request mixes. Default: 4675",
+    )
+
     scenario_parser = subparsers.add_parser(
         "run-scenario",
         parents=[common_parent],
@@ -2088,6 +2870,40 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional pause between scenario runs to reduce overlap. Default: 1.0",
     )
     stage5_parser.set_defaults(handler=run_stage5_command)
+
+    concurrency_parser = subparsers.add_parser(
+        "run-concurrency-study",
+        parents=[study_parent],
+        help="Run a controlled concurrency sweep across the Stage 5 workloads and deployments.",
+    )
+    concurrency_parser.add_argument(
+        "--single-url",
+        required=True,
+        help="Single-node base URL, typically http://127.0.0.1:5000",
+    )
+    concurrency_parser.add_argument(
+        "--multi-url",
+        required=True,
+        help="Nginx/multi-node base URL, typically http://127.0.0.1:8080",
+    )
+    concurrency_parser.add_argument(
+        "--concurrency-level",
+        action="append",
+        type=int,
+        help="Concurrency level to include in the study. Repeat this flag. Defaults to 4, 8, and 16.",
+    )
+    concurrency_parser.add_argument(
+        "--output-dir",
+        default="benchmarks/concurrency",
+        help="Directory where concurrency study files should be stored. Default: benchmarks/concurrency",
+    )
+    concurrency_parser.add_argument(
+        "--pause-seconds",
+        type=float,
+        default=1.0,
+        help="Optional pause between benchmark runs to reduce overlap. Default: 1.0",
+    )
+    concurrency_parser.set_defaults(handler=run_concurrency_study_command)
 
     case_parser = subparsers.add_parser(
         "run-case",
@@ -2184,6 +3000,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     graphs_parser.set_defaults(handler=make_graphs_command)
 
+    concurrency_graphs_parser = subparsers.add_parser(
+        "make-concurrency-graphs",
+        help="Generate SVG charts and an HTML dashboard from a controlled concurrency summary JSON file.",
+    )
+    concurrency_graphs_parser.add_argument(
+        "--summary-json",
+        required=True,
+        help="Path to concurrency-study-summary.json",
+    )
+    concurrency_graphs_parser.add_argument(
+        "--output-dir",
+        help="Directory for generated graph files. Defaults to the summary JSON directory.",
+    )
+    concurrency_graphs_parser.set_defaults(handler=make_concurrency_graphs_command)
+
     report_parser = subparsers.add_parser(
         "make-report-figures",
         help="Generate cleaner figure-numbered SVGs and captions for a report from a Stage 5 summary JSON file.",
@@ -2198,6 +3029,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Directory for generated report figure files. Defaults to <summary-dir>/report-figures.",
     )
     report_parser.set_defaults(handler=make_report_figures_command)
+
+    case_graphs_parser = subparsers.add_parser(
+        "make-case-comparison-graphs",
+        help="Generate combined SVG charts and an HTML dashboard from easy/medium/hard case JSON files.",
+    )
+    case_graphs_parser.add_argument(
+        "--case-json",
+        action="append",
+        required=True,
+        help="Path to a case JSON file. Provide this flag once per case artifact you want included.",
+    )
+    case_graphs_parser.add_argument(
+        "--output-dir",
+        help="Directory for generated combined graph files. Defaults to benchmarks/cases/combined-<timestamp>.",
+    )
+    case_graphs_parser.set_defaults(handler=make_case_comparison_graphs_command)
 
     return parser
 

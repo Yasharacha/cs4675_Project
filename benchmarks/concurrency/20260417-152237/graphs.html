@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Controlled Concurrency Study Graphs</title>
+    <style>
+      body { margin: 0; font-family: Arial, sans-serif; background: #f1f5f9; color: #0f172a; }
+      main { width: min(1280px, calc(100% - 32px)); margin: 24px auto 40px; }
+      h1 { margin-bottom: 8px; font-size: 2rem; }
+      p { color: #475569; line-height: 1.6; max-width: 76ch; }
+      .grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
+      .card { background: white; border-radius: 20px; padding: 18px; box-shadow: 0 14px 28px rgba(15, 23, 42, 0.08); }
+      .card h2 { margin: 0 0 12px; font-size: 1.05rem; }
+      img { width: 100%; height: auto; border-radius: 14px; border: 1px solid #e2e8f0; }
+      .meta { margin-bottom: 20px; padding: 16px 18px; background: #dbeafe; border-radius: 18px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Controlled Concurrency Study Graphs</h1>
+      <p>Generated from the controlled concurrency summary bundle at <strong>2026-04-17T19:28:52+00:00</strong>.</p>
+      <div class="meta">
+        <div>Requests per run: 400</div>
+        <div>Seed URLs per run: 100</div>
+        <div>Concurrency levels: 4, 8, 16</div>
+      </div>
+      <div class="grid">
+<section class="card">
+  <h2>Throughput By Concurrency</h2>
+  <img src="throughput-by-concurrency.svg" alt="throughput-by-concurrency.svg">
+</section>
+<section class="card">
+  <h2>Avg Latency By Concurrency</h2>
+  <img src="avg-latency-by-concurrency.svg" alt="avg-latency-by-concurrency.svg">
+</section>
+<section class="card">
+  <h2>P95 Latency By Concurrency</h2>
+  <img src="p95-latency-by-concurrency.svg" alt="p95-latency-by-concurrency.svg">
+</section>
+<section class="card">
+  <h2>Error Rate By Concurrency</h2>
+  <img src="error-rate-by-concurrency.svg" alt="error-rate-by-concurrency.svg">
+</section>
+      </div>
+    </main>
+  </body>
+</html>

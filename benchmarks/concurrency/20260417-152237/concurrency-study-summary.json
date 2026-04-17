@@ -1,0 +1,1109 @@
+{
+  "generated_at": "2026-04-17T19:28:52+00:00",
+  "experiment": "controlled-concurrency-study",
+  "parameters": {
+    "request_count": 400,
+    "seed_count": 100,
+    "timeout_seconds": 5.0,
+    "random_seed": 4675
+  },
+  "concurrency_levels": [
+    4,
+    8,
+    16
+  ],
+  "runs": {
+    "single-node": {
+      "read-heavy": {
+        "4": {
+          "deployment": "single-node",
+          "base_url": "http://127.0.0.1:5000",
+          "scenario": "read-heavy",
+          "scenario_description": "70% redirect, 20% metadata lookup, 10% full-list reads against existing short codes.",
+          "started_at": "2026-04-17T19:22:42+00:00",
+          "duration_seconds": 16.88,
+          "request_count": 400,
+          "concurrency": 4,
+          "seed_count": 100,
+          "timeout_seconds": 5.0,
+          "success_count": 400,
+          "error_count": 0,
+          "error_rate": 0.0,
+          "throughput_rps": 23.697,
+          "latency_ms": {
+            "avg": 168.271,
+            "median": 160.99,
+            "p95": 294.424,
+            "min": 36.507,
+            "max": 371.188
+          },
+          "status_counts": {
+            "200": 125,
+            "302": 275
+          },
+          "backend_node_counts": {
+            "local-node": 400
+          },
+          "operation_counts": {
+            "details": 88,
+            "list": 37,
+            "redirect": 275
+          },
+          "operation_summaries": {
+            "redirect": {
+              "request_count": 275,
+              "success_count": 275,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 173.31,
+                "median": 164.525,
+                "p95": 297.689,
+                "min": 36.507,
+                "max": 371.188
+              }
+            },
+            "details": {
+              "request_count": 88,
+              "success_count": 88,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 150.637,
+                "median": 140.516,
+                "p95": 254.439,
+                "min": 54.712,
+                "max": 322.882
+              }
+            },
+            "list": {
+              "request_count": 37,
+              "success_count": 37,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 172.766,
+                "median": 145.427,
+                "p95": 270.082,
+                "min": 94.74,
+                "max": 323.949
+              }
+            }
+          },
+          "errors": {}
+        },
+        "8": {
+          "deployment": "single-node",
+          "base_url": "http://127.0.0.1:5000",
+          "scenario": "read-heavy",
+          "scenario_description": "70% redirect, 20% metadata lookup, 10% full-list reads against existing short codes.",
+          "started_at": "2026-04-17T19:24:30+00:00",
+          "duration_seconds": 16.815,
+          "request_count": 400,
+          "concurrency": 8,
+          "seed_count": 100,
+          "timeout_seconds": 5.0,
+          "success_count": 400,
+          "error_count": 0,
+          "error_rate": 0.0,
+          "throughput_rps": 23.788,
+          "latency_ms": {
+            "avg": 332.045,
+            "median": 303.21,
+            "p95": 612.335,
+            "min": 88.753,
+            "max": 819.543
+          },
+          "status_counts": {
+            "200": 125,
+            "302": 275
+          },
+          "backend_node_counts": {
+            "local-node": 400
+          },
+          "operation_counts": {
+            "details": 88,
+            "list": 37,
+            "redirect": 275
+          },
+          "operation_summaries": {
+            "details": {
+              "request_count": 88,
+              "success_count": 88,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 306.598,
+                "median": 294.156,
+                "p95": 539.155,
+                "min": 96.714,
+                "max": 625.696
+              }
+            },
+            "redirect": {
+              "request_count": 275,
+              "success_count": 275,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 323.489,
+                "median": 301.11,
+                "p95": 578.157,
+                "min": 88.753,
+                "max": 819.543
+              }
+            },
+            "list": {
+              "request_count": 37,
+              "success_count": 37,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 456.166,
+                "median": 435.474,
+                "p95": 762.53,
+                "min": 169.995,
+                "max": 787.055
+              }
+            }
+          },
+          "errors": {}
+        },
+        "16": {
+          "deployment": "single-node",
+          "base_url": "http://127.0.0.1:5000",
+          "scenario": "read-heavy",
+          "scenario_description": "70% redirect, 20% metadata lookup, 10% full-list reads against existing short codes.",
+          "started_at": "2026-04-17T19:27:30+00:00",
+          "duration_seconds": 17.511,
+          "request_count": 400,
+          "concurrency": 16,
+          "seed_count": 100,
+          "timeout_seconds": 5.0,
+          "success_count": 400,
+          "error_count": 0,
+          "error_rate": 0.0,
+          "throughput_rps": 22.843,
+          "latency_ms": {
+            "avg": 680.279,
+            "median": 645.526,
+            "p95": 1223.74,
+            "min": 117.663,
+            "max": 1586.146
+          },
+          "status_counts": {
+            "200": 125,
+            "302": 275
+          },
+          "backend_node_counts": {
+            "local-node": 400
+          },
+          "operation_counts": {
+            "details": 88,
+            "list": 37,
+            "redirect": 275
+          },
+          "operation_summaries": {
+            "redirect": {
+              "request_count": 275,
+              "success_count": 275,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 664.089,
+                "median": 645.421,
+                "p95": 1145.731,
+                "min": 117.663,
+                "max": 1586.146
+              }
+            },
+            "details": {
+              "request_count": 88,
+              "success_count": 88,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 629.645,
+                "median": 590.994,
+                "p95": 1083.249,
+                "min": 180.126,
+                "max": 1452.281
+              }
+            },
+            "list": {
+              "request_count": 37,
+              "success_count": 37,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 921.039,
+                "median": 891.057,
+                "p95": 1362.788,
+                "min": 392.96,
+                "max": 1474.015
+              }
+            }
+          },
+          "errors": {}
+        }
+      },
+      "shorten-heavy": {
+        "4": {
+          "deployment": "single-node",
+          "base_url": "http://127.0.0.1:5000",
+          "scenario": "shorten-heavy",
+          "scenario_description": "85% shorten requests, 10% metadata lookup, 5% full-list reads.",
+          "started_at": "2026-04-17T19:23:05+00:00",
+          "duration_seconds": 17.37,
+          "request_count": 400,
+          "concurrency": 4,
+          "seed_count": 100,
+          "timeout_seconds": 5.0,
+          "success_count": 400,
+          "error_count": 0,
+          "error_rate": 0.0,
+          "throughput_rps": 23.028,
+          "latency_ms": {
+            "avg": 173.194,
+            "median": 152.441,
+            "p95": 312.175,
+            "min": 55.309,
+            "max": 429.386
+          },
+          "status_counts": {
+            "200": 62,
+            "201": 338
+          },
+          "backend_node_counts": {
+            "local-node": 400
+          },
+          "operation_counts": {
+            "create": 338,
+            "details": 41,
+            "list": 21
+          },
+          "operation_summaries": {
+            "details": {
+              "request_count": 41,
+              "success_count": 41,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 135.048,
+                "median": 123.076,
+                "p95": 245.767,
+                "min": 56.372,
+                "max": 290.397
+              }
+            },
+            "create": {
+              "request_count": 338,
+              "success_count": 338,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 175.391,
+                "median": 157.423,
+                "p95": 313.062,
+                "min": 55.309,
+                "max": 429.386
+              }
+            },
+            "list": {
+              "request_count": 21,
+              "success_count": 21,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 212.309,
+                "median": 231.59,
+                "p95": 313.218,
+                "min": 80.191,
+                "max": 326.353
+              }
+            }
+          },
+          "errors": {}
+        },
+        "8": {
+          "deployment": "single-node",
+          "base_url": "http://127.0.0.1:5000",
+          "scenario": "shorten-heavy",
+          "scenario_description": "85% shorten requests, 10% metadata lookup, 5% full-list reads.",
+          "started_at": "2026-04-17T19:24:54+00:00",
+          "duration_seconds": 10.954,
+          "request_count": 400,
+          "concurrency": 8,
+          "seed_count": 100,
+          "timeout_seconds": 5.0,
+          "success_count": 400,
+          "error_count": 0,
+          "error_rate": 0.0,
+          "throughput_rps": 36.516,
+          "latency_ms": {
+            "avg": 216.185,
+            "median": 211.548,
+            "p95": 331.109,
+            "min": 75.025,
+            "max": 432.47
+          },
+          "status_counts": {
+            "200": 62,
+            "201": 338
+          },
+          "backend_node_counts": {
+            "local-node": 400
+          },
+          "operation_counts": {
+            "create": 338,
+            "details": 41,
+            "list": 21
+          },
+          "operation_summaries": {
+            "create": {
+              "request_count": 338,
+              "success_count": 338,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 216.749,
+                "median": 211.548,
+                "p95": 330.259,
+                "min": 75.025,
+                "max": 432.47
+              }
+            },
+            "details": {
+              "request_count": 41,
+              "success_count": 41,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 189.001,
+                "median": 191.176,
+                "p95": 284.848,
+                "min": 78.978,
+                "max": 336.652
+              }
+            },
+            "list": {
+              "request_count": 21,
+              "success_count": 21,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 260.185,
+                "median": 249.94,
+                "p95": 342.383,
+                "min": 157.329,
+                "max": 430.003
+              }
+            }
+          },
+          "errors": {}
+        },
+        "16": {
+          "deployment": "single-node",
+          "base_url": "http://127.0.0.1:5000",
+          "scenario": "shorten-heavy",
+          "scenario_description": "85% shorten requests, 10% metadata lookup, 5% full-list reads.",
+          "started_at": "2026-04-17T19:27:56+00:00",
+          "duration_seconds": 12.974,
+          "request_count": 400,
+          "concurrency": 16,
+          "seed_count": 100,
+          "timeout_seconds": 5.0,
+          "success_count": 400,
+          "error_count": 0,
+          "error_rate": 0.0,
+          "throughput_rps": 30.831,
+          "latency_ms": {
+            "avg": 484.66,
+            "median": 442.393,
+            "p95": 818.459,
+            "min": 133.849,
+            "max": 1308.509
+          },
+          "status_counts": {
+            "200": 62,
+            "201": 338
+          },
+          "backend_node_counts": {
+            "local-node": 400
+          },
+          "operation_counts": {
+            "create": 338,
+            "details": 41,
+            "list": 21
+          },
+          "operation_summaries": {
+            "create": {
+              "request_count": 338,
+              "success_count": 338,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 489.379,
+                "median": 447.523,
+                "p95": 818.832,
+                "min": 133.849,
+                "max": 1308.509
+              }
+            },
+            "details": {
+              "request_count": 41,
+              "success_count": 41,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 416.209,
+                "median": 345.186,
+                "p95": 758.614,
+                "min": 155.168,
+                "max": 862.686
+              }
+            },
+            "list": {
+              "request_count": 21,
+              "success_count": 21,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 542.358,
+                "median": 459.146,
+                "p95": 888.852,
+                "min": 326.357,
+                "max": 941.001
+              }
+            }
+          },
+          "errors": {}
+        }
+      }
+    },
+    "multi-node": {
+      "read-heavy": {
+        "4": {
+          "deployment": "multi-node",
+          "base_url": "http://127.0.0.1:8080",
+          "scenario": "read-heavy",
+          "scenario_description": "70% redirect, 20% metadata lookup, 10% full-list reads against existing short codes.",
+          "started_at": "2026-04-17T19:23:33+00:00",
+          "duration_seconds": 22.01,
+          "request_count": 400,
+          "concurrency": 4,
+          "seed_count": 100,
+          "timeout_seconds": 5.0,
+          "success_count": 400,
+          "error_count": 0,
+          "error_rate": 0.0,
+          "throughput_rps": 18.174,
+          "latency_ms": {
+            "avg": 219.409,
+            "median": 221.8,
+            "p95": 327.816,
+            "min": 58.256,
+            "max": 441.922
+          },
+          "status_counts": {
+            "200": 125,
+            "302": 275
+          },
+          "backend_node_counts": {
+            "backend1": 200,
+            "backend2": 200
+          },
+          "operation_counts": {
+            "details": 88,
+            "list": 37,
+            "redirect": 275
+          },
+          "operation_summaries": {
+            "details": {
+              "request_count": 88,
+              "success_count": 88,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 199.762,
+                "median": 204.851,
+                "p95": 275.019,
+                "min": 66.559,
+                "max": 365.313
+              }
+            },
+            "redirect": {
+              "request_count": 275,
+              "success_count": 275,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 216.014,
+                "median": 222.083,
+                "p95": 304.351,
+                "min": 58.256,
+                "max": 383.988
+              }
+            },
+            "list": {
+              "request_count": 37,
+              "success_count": 37,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 291.379,
+                "median": 300.025,
+                "p95": 381.2,
+                "min": 161.734,
+                "max": 441.922
+              }
+            }
+          },
+          "errors": {}
+        },
+        "8": {
+          "deployment": "multi-node",
+          "base_url": "http://127.0.0.1:8080",
+          "scenario": "read-heavy",
+          "scenario_description": "70% redirect, 20% metadata lookup, 10% full-list reads against existing short codes.",
+          "started_at": "2026-04-17T19:25:12+00:00",
+          "duration_seconds": 8.755,
+          "request_count": 400,
+          "concurrency": 8,
+          "seed_count": 100,
+          "timeout_seconds": 5.0,
+          "success_count": 400,
+          "error_count": 0,
+          "error_rate": 0.0,
+          "throughput_rps": 45.686,
+          "latency_ms": {
+            "avg": 173.046,
+            "median": 156.888,
+            "p95": 301.855,
+            "min": 30.568,
+            "max": 647.628
+          },
+          "status_counts": {
+            "200": 125,
+            "302": 275
+          },
+          "backend_node_counts": {
+            "backend1": 200,
+            "backend2": 200
+          },
+          "operation_counts": {
+            "details": 88,
+            "list": 37,
+            "redirect": 275
+          },
+          "operation_summaries": {
+            "redirect": {
+              "request_count": 275,
+              "success_count": 275,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 162.861,
+                "median": 155.441,
+                "p95": 258.12,
+                "min": 30.568,
+                "max": 460.599
+              }
+            },
+            "details": {
+              "request_count": 88,
+              "success_count": 88,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 154.21,
+                "median": 146.153,
+                "p95": 257.929,
+                "min": 47.644,
+                "max": 308.358
+              }
+            },
+            "list": {
+              "request_count": 37,
+              "success_count": 37,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 293.542,
+                "median": 260.302,
+                "p95": 556.346,
+                "min": 145.49,
+                "max": 647.628
+              }
+            }
+          },
+          "errors": {}
+        },
+        "16": {
+          "deployment": "multi-node",
+          "base_url": "http://127.0.0.1:8080",
+          "scenario": "read-heavy",
+          "scenario_description": "70% redirect, 20% metadata lookup, 10% full-list reads against existing short codes.",
+          "started_at": "2026-04-17T19:28:16+00:00",
+          "duration_seconds": 9.567,
+          "request_count": 400,
+          "concurrency": 16,
+          "seed_count": 100,
+          "timeout_seconds": 5.0,
+          "success_count": 400,
+          "error_count": 0,
+          "error_rate": 0.0,
+          "throughput_rps": 41.811,
+          "latency_ms": {
+            "avg": 365.404,
+            "median": 345.692,
+            "p95": 647.563,
+            "min": 48.163,
+            "max": 954.871
+          },
+          "status_counts": {
+            "200": 125,
+            "302": 275
+          },
+          "backend_node_counts": {
+            "backend1": 200,
+            "backend2": 200
+          },
+          "operation_counts": {
+            "details": 88,
+            "list": 37,
+            "redirect": 275
+          },
+          "operation_summaries": {
+            "redirect": {
+              "request_count": 275,
+              "success_count": 275,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 342.106,
+                "median": 337.203,
+                "p95": 540.083,
+                "min": 48.163,
+                "max": 793.104
+              }
+            },
+            "details": {
+              "request_count": 88,
+              "success_count": 88,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 339.517,
+                "median": 325.485,
+                "p95": 501.328,
+                "min": 111.11,
+                "max": 794.91
+              }
+            },
+            "list": {
+              "request_count": 37,
+              "success_count": 37,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 600.134,
+                "median": 617.53,
+                "p95": 829.761,
+                "min": 179.533,
+                "max": 954.871
+              }
+            }
+          },
+          "errors": {}
+        }
+      },
+      "shorten-heavy": {
+        "4": {
+          "deployment": "multi-node",
+          "base_url": "http://127.0.0.1:8080",
+          "scenario": "shorten-heavy",
+          "scenario_description": "85% shorten requests, 10% metadata lookup, 5% full-list reads.",
+          "started_at": "2026-04-17T19:24:05+00:00",
+          "duration_seconds": 16.14,
+          "request_count": 400,
+          "concurrency": 4,
+          "seed_count": 100,
+          "timeout_seconds": 5.0,
+          "success_count": 400,
+          "error_count": 0,
+          "error_rate": 0.0,
+          "throughput_rps": 24.783,
+          "latency_ms": {
+            "avg": 160.841,
+            "median": 145.869,
+            "p95": 301.179,
+            "min": 38.785,
+            "max": 570.989
+          },
+          "status_counts": {
+            "200": 62,
+            "201": 338
+          },
+          "backend_node_counts": {
+            "backend1": 200,
+            "backend2": 200
+          },
+          "operation_counts": {
+            "create": 338,
+            "details": 41,
+            "list": 21
+          },
+          "operation_summaries": {
+            "details": {
+              "request_count": 41,
+              "success_count": 41,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 142.304,
+                "median": 141.653,
+                "p95": 267.595,
+                "min": 41.749,
+                "max": 296.854
+              }
+            },
+            "create": {
+              "request_count": 338,
+              "success_count": 338,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 160.696,
+                "median": 143.667,
+                "p95": 300.518,
+                "min": 38.785,
+                "max": 570.989
+              }
+            },
+            "list": {
+              "request_count": 21,
+              "success_count": 21,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 199.358,
+                "median": 154.259,
+                "p95": 346.474,
+                "min": 110.928,
+                "max": 399.641
+              }
+            }
+          },
+          "errors": {}
+        },
+        "8": {
+          "deployment": "multi-node",
+          "base_url": "http://127.0.0.1:8080",
+          "scenario": "shorten-heavy",
+          "scenario_description": "85% shorten requests, 10% metadata lookup, 5% full-list reads.",
+          "started_at": "2026-04-17T19:25:29+00:00",
+          "duration_seconds": 10.185,
+          "request_count": 400,
+          "concurrency": 8,
+          "seed_count": 100,
+          "timeout_seconds": 5.0,
+          "success_count": 400,
+          "error_count": 0,
+          "error_rate": 0.0,
+          "throughput_rps": 39.275,
+          "latency_ms": {
+            "avg": 201.081,
+            "median": 190.096,
+            "p95": 330.148,
+            "min": 66.483,
+            "max": 455.911
+          },
+          "status_counts": {
+            "200": 62,
+            "201": 338
+          },
+          "backend_node_counts": {
+            "backend1": 200,
+            "backend2": 200
+          },
+          "operation_counts": {
+            "create": 338,
+            "details": 41,
+            "list": 21
+          },
+          "operation_summaries": {
+            "create": {
+              "request_count": 338,
+              "success_count": 338,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 195.354,
+                "median": 189.409,
+                "p95": 298.732,
+                "min": 66.483,
+                "max": 423.899
+              }
+            },
+            "details": {
+              "request_count": 41,
+              "success_count": 41,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 175.282,
+                "median": 175.085,
+                "p95": 236.307,
+                "min": 106.862,
+                "max": 309.845
+              }
+            },
+            "list": {
+              "request_count": 21,
+              "success_count": 21,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 343.619,
+                "median": 347.323,
+                "p95": 425.148,
+                "min": 239.958,
+                "max": 455.911
+              }
+            }
+          },
+          "errors": {}
+        },
+        "16": {
+          "deployment": "multi-node",
+          "base_url": "http://127.0.0.1:8080",
+          "scenario": "shorten-heavy",
+          "scenario_description": "85% shorten requests, 10% metadata lookup, 5% full-list reads.",
+          "started_at": "2026-04-17T19:28:31+00:00",
+          "duration_seconds": 8.014,
+          "request_count": 400,
+          "concurrency": 16,
+          "seed_count": 100,
+          "timeout_seconds": 5.0,
+          "success_count": 400,
+          "error_count": 0,
+          "error_rate": 0.0,
+          "throughput_rps": 49.91,
+          "latency_ms": {
+            "avg": 304.694,
+            "median": 297.219,
+            "p95": 497.574,
+            "min": 71.686,
+            "max": 660.41
+          },
+          "status_counts": {
+            "200": 62,
+            "201": 338
+          },
+          "backend_node_counts": {
+            "backend1": 200,
+            "backend2": 200
+          },
+          "operation_counts": {
+            "create": 338,
+            "details": 41,
+            "list": 21
+          },
+          "operation_summaries": {
+            "details": {
+              "request_count": 41,
+              "success_count": 41,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 268.388,
+                "median": 279.542,
+                "p95": 393.018,
+                "min": 97.859,
+                "max": 503.726
+              }
+            },
+            "create": {
+              "request_count": 338,
+              "success_count": 338,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 298.904,
+                "median": 291.85,
+                "p95": 447.487,
+                "min": 71.686,
+                "max": 650.025
+              }
+            },
+            "list": {
+              "request_count": 21,
+              "success_count": 21,
+              "error_count": 0,
+              "error_rate": 0.0,
+              "latency_ms": {
+                "avg": 468.781,
+                "median": 466.263,
+                "p95": 628.352,
+                "min": 239.416,
+                "max": 660.41
+              }
+            }
+          },
+          "errors": {}
+        }
+      }
+    }
+  },
+  "comparisons": {
+    "read-heavy": {
+      "4": {
+        "scenario": "read-heavy",
+        "single_node": {
+          "throughput_rps": 23.697,
+          "avg_latency_ms": 168.271,
+          "p95_latency_ms": 294.424,
+          "error_rate": 0.0
+        },
+        "multi_node": {
+          "throughput_rps": 18.174,
+          "avg_latency_ms": 219.409,
+          "p95_latency_ms": 327.816,
+          "error_rate": 0.0
+        },
+        "delta": {
+          "throughput_rps": -5.523,
+          "throughput_percent": -23.307,
+          "avg_latency_ms": 51.138,
+          "avg_latency_percent": 30.39,
+          "p95_latency_ms": 33.392,
+          "p95_latency_percent": 11.341,
+          "error_rate": 0.0
+        }
+      },
+      "8": {
+        "scenario": "read-heavy",
+        "single_node": {
+          "throughput_rps": 23.788,
+          "avg_latency_ms": 332.045,
+          "p95_latency_ms": 612.335,
+          "error_rate": 0.0
+        },
+        "multi_node": {
+          "throughput_rps": 45.686,
+          "avg_latency_ms": 173.046,
+          "p95_latency_ms": 301.855,
+          "error_rate": 0.0
+        },
+        "delta": {
+          "throughput_rps": 21.898,
+          "throughput_percent": 92.055,
+          "avg_latency_ms": -158.999,
+          "avg_latency_percent": -47.885,
+          "p95_latency_ms": -310.48,
+          "p95_latency_percent": -50.704,
+          "error_rate": 0.0
+        }
+      },
+      "16": {
+        "scenario": "read-heavy",
+        "single_node": {
+          "throughput_rps": 22.843,
+          "avg_latency_ms": 680.279,
+          "p95_latency_ms": 1223.74,
+          "error_rate": 0.0
+        },
+        "multi_node": {
+          "throughput_rps": 41.811,
+          "avg_latency_ms": 365.404,
+          "p95_latency_ms": 647.563,
+          "error_rate": 0.0
+        },
+        "delta": {
+          "throughput_rps": 18.968,
+          "throughput_percent": 83.036,
+          "avg_latency_ms": -314.875,
+          "avg_latency_percent": -46.286,
+          "p95_latency_ms": -576.177,
+          "p95_latency_percent": -47.083,
+          "error_rate": 0.0
+        }
+      }
+    },
+    "shorten-heavy": {
+      "4": {
+        "scenario": "shorten-heavy",
+        "single_node": {
+          "throughput_rps": 23.028,
+          "avg_latency_ms": 173.194,
+          "p95_latency_ms": 312.175,
+          "error_rate": 0.0
+        },
+        "multi_node": {
+          "throughput_rps": 24.783,
+          "avg_latency_ms": 160.841,
+          "p95_latency_ms": 301.179,
+          "error_rate": 0.0
+        },
+        "delta": {
+          "throughput_rps": 1.755,
+          "throughput_percent": 7.621,
+          "avg_latency_ms": -12.353,
+          "avg_latency_percent": -7.132,
+          "p95_latency_ms": -10.996,
+          "p95_latency_percent": -3.522,
+          "error_rate": 0.0
+        }
+      },
+      "8": {
+        "scenario": "shorten-heavy",
+        "single_node": {
+          "throughput_rps": 36.516,
+          "avg_latency_ms": 216.185,
+          "p95_latency_ms": 331.109,
+          "error_rate": 0.0
+        },
+        "multi_node": {
+          "throughput_rps": 39.275,
+          "avg_latency_ms": 201.081,
+          "p95_latency_ms": 330.148,
+          "error_rate": 0.0
+        },
+        "delta": {
+          "throughput_rps": 2.759,
+          "throughput_percent": 7.556,
+          "avg_latency_ms": -15.104,
+          "avg_latency_percent": -6.987,
+          "p95_latency_ms": -0.961,
+          "p95_latency_percent": -0.29,
+          "error_rate": 0.0
+        }
+      },
+      "16": {
+        "scenario": "shorten-heavy",
+        "single_node": {
+          "throughput_rps": 30.831,
+          "avg_latency_ms": 484.66,
+          "p95_latency_ms": 818.459,
+          "error_rate": 0.0
+        },
+        "multi_node": {
+          "throughput_rps": 49.91,
+          "avg_latency_ms": 304.694,
+          "p95_latency_ms": 497.574,
+          "error_rate": 0.0
+        },
+        "delta": {
+          "throughput_rps": 19.079,
+          "throughput_percent": 61.883,
+          "avg_latency_ms": -179.966,
+          "avg_latency_percent": -37.132,
+          "p95_latency_ms": -320.885,
+          "p95_latency_percent": -39.206,
+          "error_rate": 0.0
+        }
+      }
+    }
+  }
+}

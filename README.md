@@ -395,6 +395,41 @@ This creates a `report-figures/` folder with:
 - `report-figure-captions.md` with report-ready figure captions and a suggested results paragraph
 - `report-figures.html` for quick review in a browser
 
+### Controlled Concurrency Study
+
+If you want a one-variable-at-a-time performance experiment, use the controlled concurrency study. This keeps request count, seed count, timeout, and random seed fixed while sweeping only concurrency across both Stage 5 workloads.
+
+```bash
+uv run python benchmark.py run-concurrency-study \
+  --single-url http://127.0.0.1:5000 \
+  --multi-url http://127.0.0.1:8080 \
+  --concurrency-level 4 \
+  --concurrency-level 8 \
+  --concurrency-level 16 \
+  --requests 400 \
+  --seed-count 100
+```
+
+This writes a timestamped results folder under `benchmarks/concurrency/`.
+
+Inside that folder you will get:
+
+- one JSON result file per deployment, workload, and concurrency level
+- `concurrency-study-summary.json` with the combined comparison data
+- `concurrency-study-summary.md` with a report-ready markdown summary
+- `throughput-by-concurrency.svg`
+- `avg-latency-by-concurrency.svg`
+- `p95-latency-by-concurrency.svg`
+- `error-rate-by-concurrency.svg`
+- `graphs.html`
+
+To rebuild the graphs from an existing concurrency-study summary:
+
+```bash
+uv run python benchmark.py make-concurrency-graphs \
+  --summary-json benchmarks/concurrency/<timestamp>/concurrency-study-summary.json
+```
+
 ### Easy, Medium, Hard Demo Cases
 
 If you want to present the system as progressively harder cases instead of one full benchmark suite, use the built-in case runner.
@@ -489,6 +524,32 @@ What it generates:
 - manual mode:
   `benchmarks/cases/<timestamp>/hard-case.json` and `hard-case.md`
   This contains a manual runbook and curl commands, not benchmark metrics.
+
+#### Combined Easy / Medium / Hard Graphs
+
+If you already have case JSON files and want one presentation-ready comparison across the benchmark-mode runs, generate a combined graph bundle:
+
+```bash
+uv run python benchmark.py make-case-comparison-graphs \
+  --case-json benchmarks/cases/<easy-timestamp>/easy-case.json \
+  --case-json benchmarks/cases/<medium-timestamp>/medium-case.json \
+  --case-json benchmarks/cases/<hard-timestamp>/hard-case.json
+```
+
+What it generates:
+
+- `benchmarks/cases/combined-<timestamp>/combined-case-summary.json`
+- `throughput.svg`
+- `avg-latency.svg`
+- `p95-latency.svg`
+- `error-rate.svg`
+- `graphs.html`
+
+Notes:
+
+- the medium case contributes two labeled bars: read-heavy and shorten-heavy
+- the hard benchmark is labeled as failover
+- hard manual runbooks can be passed too, but they are skipped from the charts because they do not contain benchmark metrics
 
 If you want graphs, use the full Stage 5 workflow:
 

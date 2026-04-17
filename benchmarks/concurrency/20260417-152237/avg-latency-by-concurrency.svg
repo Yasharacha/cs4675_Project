@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="620" viewBox="0 0 1240 620" role="img" aria-label="Average Latency by Concurrency">
+<defs>
+<style>
+.title { font: 700 26px Arial, sans-serif; fill: #14213d; }
+.subtitle { font: 400 14px Arial, sans-serif; fill: #5b6472; }
+.axis { font: 12px Arial, sans-serif; fill: #334155; }
+.label { font: 600 13px Arial, sans-serif; fill: #1f2937; }
+.value { font: 600 12px Arial, sans-serif; fill: #0f172a; }
+.legend { font: 600 13px Arial, sans-serif; fill: #1f2937; }
+.grid { stroke: #d8dee9; stroke-width: 1; }
+.axis-line { stroke: #94a3b8; stroke-width: 1.2; }
+</style>
+</defs>
+<rect width="1240" height="620" fill="#f8fafc" />
+<text x="88" y="36" class="title">Average Latency by Concurrency</text>
+<text x="88" y="58" class="subtitle">Lower is better. Average end-to-end latency under each concurrency level.</text>
+<text x="1180" y="36" text-anchor="end" class="subtitle">metric: latency_ms.avg</text>
+<line x1="88" y1="524.00" x2="980" y2="524.00" class="grid" />
+<text x="76" y="528.00" text-anchor="end" class="axis">0</text>
+<line x1="88" y1="436.00" x2="980" y2="436.00" class="grid" />
+<text x="76" y="440.00" text-anchor="end" class="axis">156</text>
+<line x1="88" y1="348.00" x2="980" y2="348.00" class="grid" />
+<text x="76" y="352.00" text-anchor="end" class="axis">313</text>
+<line x1="88" y1="260.00" x2="980" y2="260.00" class="grid" />
+<text x="76" y="264.00" text-anchor="end" class="axis">469</text>
+<line x1="88" y1="172.00" x2="980" y2="172.00" class="grid" />
+<text x="76" y="176.00" text-anchor="end" class="axis">626</text>
+<line x1="88" y1="84.00" x2="980" y2="84.00" class="grid" />
+<text x="76" y="88.00" text-anchor="end" class="axis">782</text>
+<line x1="88" y1="84" x2="88" y2="524" class="axis-line" />
+<line x1="88" y1="524" x2="980" y2="524" class="axis-line" />
+<text x="20" y="304.00" transform="rotate(-90 20 304.00)" class="label">Latency (ms)</text>
+<rect x="1004" y="82" width="14" height="14" rx="3" fill="#1d4ed8" />
+<text x="1026" y="93" class="legend">Single / Read</text>
+<rect x="1004" y="106" width="14" height="14" rx="3" fill="#60a5fa" />
+<text x="1026" y="117" class="legend">Multi / Read</text>
+<rect x="1004" y="130" width="14" height="14" rx="3" fill="#c2410c" />
+<text x="1026" y="141" class="legend">Single / Shorten</text>
+<rect x="1004" y="154" width="14" height="14" rx="3" fill="#fdba74" />
+<text x="1026" y="165" class="legend">Multi / Shorten</text>
+<rect x="120.71" y="429.36" width="51.98" height="94.64" rx="10" fill="#1d4ed8" />
+<text x="146.70" y="421.36" text-anchor="middle" class="value">168.271</text>
+<rect x="180.69" y="400.60" width="51.98" height="123.40" rx="10" fill="#60a5fa" />
+<text x="206.68" y="392.60" text-anchor="middle" class="value">219.409</text>
+<rect x="240.67" y="426.59" width="51.98" height="97.41" rx="10" fill="#c2410c" />
+<text x="266.66" y="418.59" text-anchor="middle" class="value">173.194</text>
+<rect x="300.65" y="433.54" width="51.98" height="90.46" rx="10" fill="#fdba74" />
+<text x="326.64" y="425.54" text-anchor="middle" class="value">160.841</text>
+<text x="236.67" y="588" text-anchor="middle" class="label">C=4</text>
+<rect x="418.04" y="337.25" width="51.98" height="186.75" rx="10" fill="#1d4ed8" />
+<text x="444.03" y="329.25" text-anchor="middle" class="value">332.045</text>
+<rect x="478.02" y="426.67" width="51.98" height="97.33" rx="10" fill="#60a5fa" />
+<text x="504.01" y="418.67" text-anchor="middle" class="value">173.046</text>
+<rect x="538.00" y="402.41" width="51.98" height="121.59" rx="10" fill="#c2410c" />
+<text x="563.99" y="394.41" text-anchor="middle" class="value">216.185</text>
+<rect x="597.98" y="410.91" width="51.98" height="113.09" rx="10" fill="#fdba74" />
+<text x="623.97" y="402.91" text-anchor="middle" class="value">201.081</text>
+<text x="534.00" y="588" text-anchor="middle" class="label">C=8</text>
+<rect x="715.37" y="141.39" width="51.98" height="382.61" rx="10" fill="#1d4ed8" />
+<text x="741.36" y="133.39" text-anchor="middle" class="value">680.279</text>
+<rect x="775.35" y="318.49" width="51.98" height="205.51" rx="10" fill="#60a5fa" />
+<text x="801.34" y="310.49" text-anchor="middle" class="value">365.404</text>
+<rect x="835.33" y="251.41" width="51.98" height="272.59" rx="10" fill="#c2410c" />
+<text x="861.32" y="243.41" text-anchor="middle" class="value">484.660</text>
+<rect x="895.31" y="352.63" width="51.98" height="171.37" rx="10" fill="#fdba74" />
+<text x="921.30" y="344.63" text-anchor="middle" class="value">304.694</text>
+<text x="831.33" y="588" text-anchor="middle" class="label">C=16</text>
+</svg>

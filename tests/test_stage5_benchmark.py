@@ -276,6 +276,55 @@ class BenchmarkScriptTests(unittest.TestCase):
         finally:
             shutil.rmtree(output_dir, ignore_errors=True)
 
+    def test_run_concurrency_study_and_generate_graphs(self):
+        output_dir = Path("test_data") / f"concurrency-study-{uuid4().hex}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            summary_bundle = benchmark.run_concurrency_study(
+                single_url=self.base_url,
+                multi_url=self.base_url,
+                request_count=12,
+                concurrency_levels=[1, 2],
+                seed_count=4,
+                timeout_seconds=2.0,
+                random_seed=999,
+                pause_seconds=0.0,
+                run_dir=output_dir,
+            )
+
+            self.assertEqual(summary_bundle["concurrency_levels"], [1, 2])
+            self.assertEqual(summary_bundle["parameters"]["request_count"], 12)
+            self.assertEqual(
+                summary_bundle["runs"]["single-node"]["read-heavy"]["1"]["concurrency"],
+                1,
+            )
+            self.assertEqual(
+                summary_bundle["runs"]["multi-node"]["shorten-heavy"]["2"]["concurrency"],
+                2,
+            )
+            self.assertTrue((output_dir / "single-node-read-heavy-c1.json").exists())
+            self.assertTrue((output_dir / "multi-node-shorten-heavy-c2.json").exists())
+
+            output_paths = benchmark.generate_concurrency_graph_files(summary_bundle, output_dir)
+
+            self.assertEqual(len(output_paths), 5)
+            self.assertTrue((output_dir / "throughput-by-concurrency.svg").exists())
+            self.assertTrue((output_dir / "avg-latency-by-concurrency.svg").exists())
+            self.assertTrue((output_dir / "p95-latency-by-concurrency.svg").exists())
+            self.assertTrue((output_dir / "error-rate-by-concurrency.svg").exists())
+            self.assertTrue((output_dir / "graphs.html").exists())
+            self.assertIn(
+                "Throughput by Concurrency",
+                (output_dir / "throughput-by-concurrency.svg").read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                "Controlled Concurrency Study Graphs",
+                (output_dir / "graphs.html").read_text(encoding="utf-8"),
+            )
+        finally:
+            shutil.rmtree(output_dir, ignore_errors=True)
+
     def test_generate_report_figure_files(self):
         summary_bundle = {
             "generated_at": "2026-04-15T17:36:37+00:00",
@@ -394,6 +443,117 @@ class BenchmarkScriptTests(unittest.TestCase):
             )
             self.assertIn(
                 "Medium Case Graphs",
+                (output_dir / "graphs.html").read_text(encoding="utf-8"),
+            )
+        finally:
+            shutil.rmtree(output_dir, ignore_errors=True)
+
+    def test_generate_case_comparison_graph_files(self):
+        case_sources = [
+            (
+                Path("easy-case.json"),
+                {
+                    "case": "easy",
+                    "mode": "benchmark",
+                    "title": "Easy Case",
+                    "runs": {
+                        "single-node / read-heavy": {
+                            "scenario": "read-heavy",
+                            "deployment": "single-node",
+                            "throughput_rps": 56.268,
+                            "latency_ms": {"avg": 102.978, "p95": 189.198},
+                            "error_rate": 0.0,
+                        }
+                    },
+                },
+            ),
+            (
+                Path("medium-case.json"),
+                {
+                    "case": "medium",
+                    "mode": "benchmark",
+                    "title": "Medium Case",
+                    "runs": {
+                        "multi-node / read-heavy": {
+                            "scenario": "read-heavy",
+                            "deployment": "multi-node",
+                            "throughput_rps": 82.476,
+                            "latency_ms": {"avg": 94.245, "p95": 198.637},
+                            "error_rate": 0.0,
+                        },
+                        "multi-node / shorten-heavy": {
+                            "scenario": "shorten-heavy",
+                            "deployment": "multi-node",
+                            "throughput_rps": 68.221,
+                            "latency_ms": {"avg": 112.1, "p95": 234.196},
+                            "error_rate": 0.0,
+                        },
+                    },
+                },
+            ),
+            (
+                Path("hard-case.json"),
+                {
+                    "case": "hard",
+                    "mode": "benchmark",
+                    "title": "Hard Case",
+                    "runs": {
+                        "multi-node failover / read-heavy": {
+                            "scenario": "read-heavy",
+                            "deployment": "multi-node-failover",
+                            "throughput_rps": 65.113,
+                            "latency_ms": {"avg": 60.226, "p95": 171.399},
+                            "error_rate": 0.0,
+                        }
+                    },
+                },
+            ),
+            (
+                Path("hard-manual-case.json"),
+                {
+                    "case": "hard",
+                    "mode": "manual",
+                    "title": "Hard Case Manual Runbook",
+                    "manual_steps": ["1. Stop backend1"],
+                },
+            ),
+        ]
+
+        comparison_bundle = benchmark.build_case_comparison_bundle(case_sources)
+
+        self.assertEqual(len(comparison_bundle["runs"]), 4)
+        self.assertEqual(
+            [run["label"] for run in comparison_bundle["runs"]],
+            [
+                "Easy: Single-node Read-Heavy",
+                "Medium: Read Heavy",
+                "Medium: Shorten Heavy",
+                "Hard: Failover Read Heavy",
+            ],
+        )
+        self.assertEqual(len(comparison_bundle["skipped_cases"]), 1)
+
+        output_dir = Path("test_data") / f"combined-case-graphs-{uuid4().hex}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            output_paths = benchmark.generate_case_comparison_graph_files(
+                comparison_bundle,
+                output_dir,
+            )
+
+            self.assertEqual(len(output_paths), 5)
+            self.assertTrue((output_dir / "throughput.svg").exists())
+            self.assertTrue((output_dir / "avg-latency.svg").exists())
+            self.assertTrue((output_dir / "p95-latency.svg").exists())
+            self.assertTrue((output_dir / "error-rate.svg").exists())
+            self.assertTrue((output_dir / "graphs.html").exists())
+            self.assertIn(
+                "Easy, Medium, and Hard: Error Rate",
+                (output_dir / "error-rate.svg").read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                "Manual case has no benchmark metrics to chart.",
                 (output_dir / "graphs.html").read_text(encoding="utf-8"),
             )
         finally:
