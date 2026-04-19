@@ -1,4 +1,0 @@
-app
-benchmark
-print_db
-run

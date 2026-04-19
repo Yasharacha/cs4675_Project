@@ -1,593 +1,249 @@
 # CS4675 Distributed URL Shortener
 
-This repository is being built in stages so the implementation maps cleanly to the final report.
+This project extends a basic URL shortener into a small distributed system with persistence, load balancing, failover behavior, and repeatable performance evaluation.
 
-## Stage 1
+## Project Summary
 
-Stage 1 implements a single-node URL shortener with:
+The final system supports:
+
+- a single-node URL shortener API
+- persistent SQLite storage
+- a two-backend nginx deployment
+- backend identification through response headers and a node-inspection endpoint
+- partial-failure behavior when one backend is unavailable
+- repeatable benchmark and graph generation workflows
+
+The implementation was built in stages so the design changes are clear and the evaluation maps directly to the report.
+
+## Implementation Details
+
+### Stage 1: Single-Node Service
+
+The single-node service provides:
 
 - `POST /api/v1/urls` to create a short URL
 - `GET /<code>` to redirect to the original URL
 - `GET /api/v1/urls/<code>` to inspect metadata
-- `GET /health` for a basic health check
-- expiration support
-- click-count and last-accessed analytics
+- `GET /api/v1/urls` to list stored mappings
+- `GET /health` for health checking
 
-## Stage 2
+The service also tracks expiration, click counts, and last-accessed information.
 
-Stage 2 replaces the in-memory store with SQLite persistence so URL mappings survive server restarts and can be shared by multiple app instances in later stages.
+### Stage 2: Persistent Storage
 
-You can override the database path by passing `DATABASE_PATH` into `create_app(...)` during tests or future deployment configuration.
+Stage 2 replaces the temporary in-memory store with SQLite so mappings survive restarts and can be shared by multiple application instances later in the project.
 
-## Run locally
+### Stage 3: Multi-Node Deployment
 
-Install dependencies with uv:
+Stage 3 introduces:
+
+- two backend app containers
+- one nginx load balancer
+- a shared Docker volume mounted at `/app/data`
+- per-node identification through the `X-Backend-Node` header
+- `GET /api/v1/node` for debugging and evidence collection
+
+This is the point where the project moves from a single app instance to a small replicated service.
+
+### Stage 4: Fault Tolerance
+
+Stage 4 focuses on partial failure. The nginx configuration is set so requests can continue flowing to the surviving backend when one backend container is stopped.
+
+The goal of this stage is not only redirect continuity. It also checks whether URL creation still works during partial failure.
+
+### Stage 5: Performance and Evaluation
+
+Stage 5 adds the benchmark runner in [benchmark.py](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmark.py). It produces repeatable measurements for:
+
+- throughput
+- average latency
+- p95 latency
+- error rate
+- backend-node distribution
+
+Two workload mixes are built into the benchmark runner:
+
+- `read-heavy`: `70%` redirects, `20%` metadata lookups, `10%` full-list reads
+- `shorten-heavy`: `85%` create requests, `10%` metadata lookups, `5%` full-list reads
+
+These workloads let the project compare read-dominant traffic against write-dominant traffic.
+
+## How To Run
+
+Install dependencies:
 
 ```bash
 uv sync --dev
 ```
 
+Run the single-node app:
+
 ```bash
 uv run python run.py
 ```
 
-This creates or reuses a SQLite database at `data/url_shortener.db`.
+Run the distributed stack:
 
-Once the server is running, open `http://127.0.0.1:5000/` in a browser to use the minimal GUI. The interface lets you:
+```bash
+docker compose up --build -d
+```
 
-- create short URLs without using `curl`
-- view the current backend instance name and database path
-- inspect all stored mappings and their click counts
-- open generated short links directly from the page
-
-To verify persistence manually:
-
-1. Start the server with `uv run python run.py`
-2. Create a short URL with the API
-3. Stop the server
-4. Start the server again
-5. Request the same short code and confirm it still resolves
-
-## Run tests
+Run tests:
 
 ```bash
 uv run pytest
 ```
 
-## Print Database Contents
+## Benchmark Methodology
 
-To print every stored URL mapping from the local SQLite database:
+The final submission keeps three evaluation views:
 
-```bash
-uv run python print_db.py
-```
+### 1. Fixed-Concurrency Stage 5 Comparison
 
-If you want to point at a different database file:
+This is the original single-node vs multi-node comparison at fixed concurrency `20`.
 
-```bash
-DATABASE_PATH=some/other/file.db uv run python print_db.py
-```
+Purpose:
 
-If you are running the distributed Docker stack and want to inspect the shared Docker-backed database instead:
+- compare one backend against the nginx-fronted two-backend layout
+- compare `read-heavy` and `shorten-heavy` workloads at one consistent operating point
 
-```bash
-uv run python print_db.py --docker
-```
+Final artifact folder:
 
-## Planned stages
+- [benchmarks/results/20260415-133202](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/results/20260415-133202)
 
-1. Single-node service and API contract
-2. Persistent storage with database-backed mappings
-3. Multi-node deployment with Docker and nginx
-4. Fault-tolerance testing and failover behavior
-5. Performance and evaluation
+Main files:
 
-## Stage 3
+- [stage5-summary.md](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/results/20260415-133202/stage5-summary.md)
+- [graphs.html](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/results/20260415-133202/graphs.html)
 
-Stage 3 introduces a multi-node deployment layout:
+### 2. Controlled Concurrency Study
 
-- two backend app containers
-- one nginx load balancer container
-- a shared Docker volume mounted at `/app/data`
-- per-node identification through the `X-Backend-Node` response header
-- a debug endpoint at `GET /api/v1/node`
+This is the cleaner one-variable-at-a-time experiment. It keeps request count, seed count, timeout, and random seed fixed while changing only concurrency.
 
-### Stage 3 Run
+Concurrency levels tested:
 
-```bash
-docker compose up --build
-```
+- `4`
+- `8`
+- `16`
 
-The load balancer is exposed at `http://127.0.0.1:8080`.
+Purpose:
 
-If Docker is not already running, start Docker Desktop first. `docker compose` will fail if the local Docker daemon is unavailable.
+- show how performance changes as parallel request pressure increases
+- compare single-node and multi-node behavior at each concurrency level
+- compare `read-heavy` and `shorten-heavy` scaling trends
 
-Once the stack is running, open `http://127.0.0.1:8080/` to use the same GUI through nginx. Refreshing the page or the dashboard data is a quick way to observe which backend node served the request.
+Final artifact folder:
 
-### Stage 3 Quick Checks
+- [benchmarks/concurrency/20260417-152237](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/concurrency/20260417-152237)
 
-Create a short URL through nginx:
+Main files:
 
-```bash
-curl -X POST http://127.0.0.1:8080/api/v1/urls \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://example.com/distributed","expires_in_days":7}'
-```
+- [concurrency-study-summary.md](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/concurrency/20260417-152237/concurrency-study-summary.md)
+- [graphs.html](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/concurrency/20260417-152237/graphs.html)
+- [throughput-by-concurrency.svg](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/concurrency/20260417-152237/throughput-by-concurrency.svg)
+- [avg-latency-by-concurrency.svg](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/concurrency/20260417-152237/avg-latency-by-concurrency.svg)
+- [p95-latency-by-concurrency.svg](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/concurrency/20260417-152237/p95-latency-by-concurrency.svg)
+- [error-rate-by-concurrency.svg](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/concurrency/20260417-152237/error-rate-by-concurrency.svg)
 
-Check which backend answered:
+### 3. Easy / Medium / Hard Scenarios
 
-```bash
-curl -i http://127.0.0.1:8080/api/v1/node
-```
+These cases are smaller, presentation-friendly benchmark scenarios. They are not meant to replace the larger evaluation studies. They are meant to explain the system behavior progressively.
 
-Repeat that command several times and the `X-Backend-Node` header should alternate between backend instances.
+#### Easy Scenario
 
-## Stage 4
+The easy case is the baseline.
 
-Stage 4 demonstrates partial-failure behavior when one backend node is unavailable.
+- single-node deployment
+- one `read-heavy` benchmark
+- no load balancer
+- no failover
 
-The nginx configuration is set up so that:
+Purpose:
 
-- upstream failures are detected quickly with `max_fails=1` and `fail_timeout=5s`
-- nginx retries another backend when it sees connection or upstream errors
-- retries also apply to non-idempotent requests such as `POST /api/v1/urls`
+- show that the core service works in the simplest configuration
+- establish a baseline before distribution or failure is introduced
 
-This matters because Stage 4 is not only about redirects continuing to work. It also needs URL creation to keep working even if nginx first selects the backend container that has been stopped.
+Artifacts:
 
-### Stage 4 Runbook
+- [easy-case.md](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/cases/easy-20260416-145610/easy-case.md)
+- [graphs.html](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/cases/easy-20260416-145610/graphs.html)
 
-Use this exact sequence when you want to demonstrate fault tolerance and capture evidence for the report.
+#### Medium Scenario
 
-#### 1. Start the distributed stack
+The medium case is the average healthy distributed case.
 
-```bash
-docker compose up --build -d
-docker compose ps
-```
+- multi-node nginx deployment
+- one `read-heavy` benchmark
+- one `shorten-heavy` benchmark
+- both backends healthy
 
-Expected result:
+Purpose:
 
-- `backend1`, `backend2`, and `nginx` should all be listed as running
-- nginx should be reachable on `http://127.0.0.1:8080`
+- show the normal distributed operating mode
+- compare read-heavy and shorten-heavy traffic while the system is healthy
+- show request distribution across both backends
 
-#### 2. Confirm both backends are serving traffic before failure
+Artifacts:
 
-Run the node endpoint several times:
+- [medium-case.md](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/cases/medium-20260416-145610/medium-case.md)
+- [graphs.html](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/cases/medium-20260416-145610/graphs.html)
 
-```bash
-curl -i http://127.0.0.1:8080/api/v1/node
-curl -i http://127.0.0.1:8080/api/v1/node
-curl -i http://127.0.0.1:8080/api/v1/node
-curl -i http://127.0.0.1:8080/api/v1/node
-```
+#### Hard Scenario
 
-What to look for:
+The hard case is the failure case.
 
-- the `X-Backend-Node` response header should alternate between `backend1` and `backend2`
-- the JSON body should report the same instance name as the header
+- one backend stopped before the run
+- nginx routes to the surviving backend
+- a smaller failover benchmark is executed
 
-This is your pre-failure evidence that nginx is distributing requests across both backends.
+Purpose:
 
-#### 3. Create a short URL before inducing failure
+- show that the service still works during partial failure
+- show that nginx continues routing requests to the surviving backend
+- show that failover preserves availability even when capacity is reduced
 
-```bash
-curl -X POST http://127.0.0.1:8080/api/v1/urls \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://example.com/fault-tolerance","expires_in_days":7}'
-```
+Artifacts:
 
-Save the returned `code`. You will use it later to prove redirects still work after one node is stopped.
+- [hard-case.md](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/cases/hard-20260416-145733/hard-case.md)
+- [graphs.html](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/cases/hard-20260416-145733/graphs.html)
 
-#### 4. Stop one backend node
+Combined case comparison:
 
-Stop exactly one backend container:
+- [benchmarks/cases/combined-20260416-152033/graphs.html](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/cases/combined-20260416-152033/graphs.html)
 
-```bash
-docker compose stop backend1
-docker compose ps
-```
+## What The Benchmarks Were Showing
 
-Expected result:
+The evaluation work was meant to answer three questions:
 
-- `backend1` should show as stopped or exited
-- `backend2` and `nginx` should still be running
+1. Does the multi-node deployment outperform the single-node deployment under meaningful load?
+2. Does the system behave differently under read-heavy and shorten-heavy traffic?
+3. Does the system remain available during partial failure?
 
-#### 5. Verify read requests still work during partial failure
+The final benchmark results support these conclusions:
 
-Check node identity a few times:
+- at low concurrency, multi-node overhead can outweigh the benefit of replication
+- at medium and high concurrency, multi-node clearly improves throughput and latency
+- `read-heavy` traffic benefits more strongly from multiple backends
+- `shorten-heavy` traffic still improves, but gains are limited by the shared SQLite database
+- error rate stayed at `0.0` in the final controlled concurrency study
+- the hard scenario showed continued availability when one backend was removed
 
-```bash
-curl -i http://127.0.0.1:8080/api/v1/node
-curl -i http://127.0.0.1:8080/api/v1/node
-curl -i http://127.0.0.1:8080/api/v1/node
-```
+These outcomes are consistent with the architecture: the application layer is replicated, but persistence is still shared.
 
-Expected result:
+## Key Submission Artifacts
 
-- responses should continue succeeding with `HTTP/1.1 200 OK`
-- `X-Backend-Node` should now consistently show `backend2`
+For the final submission, the most important evidence folders are:
 
-Then verify redirect behavior using the code created earlier:
+- [benchmarks/results/20260415-133202](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/results/20260415-133202)
+- [benchmarks/concurrency/20260417-152237](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/concurrency/20260417-152237)
+- [benchmarks/cases/easy-20260416-145610](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/cases/easy-20260416-145610)
+- [benchmarks/cases/medium-20260416-145610](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/cases/medium-20260416-145610)
+- [benchmarks/cases/hard-20260416-145733](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/cases/hard-20260416-145733)
+- [benchmarks/cases/combined-20260416-152033](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/cases/combined-20260416-152033)
 
-```bash
-curl -i http://127.0.0.1:8080/<code>
-```
+## Limitations
 
-Expected result:
-
-- nginx should still return `302 FOUND`
-- the `Location` header should still point to the original long URL
-- the response header should show `X-Backend-Node: backend2`
-
-#### 6. Verify write requests still work during partial failure
-
-Create a new short URL while `backend1` is still stopped:
-
-```bash
-curl -i -X POST http://127.0.0.1:8080/api/v1/urls \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://example.com/post-failover","expires_in_days":7}'
-```
-
-Expected result:
-
-- the request should still succeed with `HTTP/1.1 201 CREATED`
-- the response should include `X-Backend-Node: backend2`
-- the returned `short_url` should be usable immediately
-
-This is the key Stage 4 write-path check. Because nginx is configured with `proxy_next_upstream ... non_idempotent`, a `POST` can be retried against the surviving backend if the first upstream choice is unavailable.
-
-#### 7. Confirm the shared database still serves data
-
-List stored URLs through nginx:
-
-```bash
-curl http://127.0.0.1:8080/api/v1/urls
-```
-
-Expected result:
-
-- URLs created before the failure should still exist
-- URLs created after the failure should also appear
-
-This works because both containers mount the same shared Docker volume at `/app/data`, and both app instances point to the same SQLite database file.
-
-#### 8. Optional recovery check
-
-Restart the stopped backend:
-
-```bash
-docker compose start backend1
-docker compose ps
-```
-
-Then query the node endpoint again several times:
-
-```bash
-curl -i http://127.0.0.1:8080/api/v1/node
-curl -i http://127.0.0.1:8080/api/v1/node
-curl -i http://127.0.0.1:8080/api/v1/node
-curl -i http://127.0.0.1:8080/api/v1/node
-```
-
-Expected result:
-
-- traffic should begin appearing on both `backend1` and `backend2` again
-
-### Stage 4 What nginx Is Doing
-
-When one upstream backend is stopped, nginx will first see a connection failure or upstream error when it tries to proxy a request there. With the current configuration:
-
-- `max_fails=1` and `fail_timeout=5s` cause nginx to mark that backend as unavailable quickly
-- `proxy_next_upstream` tells nginx which failure classes should trigger a retry on another backend
-- `proxy_next_upstream_tries 2` limits the retry chain to the two configured backends
-- `non_idempotent` allows nginx to retry `POST` requests in this controlled demo setup
-
-In practice, that means one failed backend should degrade capacity but not fully take the service down, as long as the other backend and the shared database volume remain available.
-
-### Stage 4 Evidence To Capture For The Report
-
-Capture these artifacts while running the drill:
-
-- output of `docker compose ps` before and after stopping one backend
-- several `curl -i http://127.0.0.1:8080/api/v1/node` responses before failure, showing both backend names
-- several `curl -i http://127.0.0.1:8080/api/v1/node` responses after failure, showing only the surviving backend
-- one successful redirect response after failure
-- one successful `POST /api/v1/urls` response after failure
-- one `GET /api/v1/urls` response showing data created before and after the failure
-
-If you want nginx-side logs for extra evidence, run:
-
-```bash
-docker compose logs nginx
-docker compose logs backend1
-docker compose logs backend2
-```
-
-### Stage 5: Performance and Evaluation
-
-Stage 5 is implemented with the benchmark runner in `benchmark.py`.
-
-The script is designed to produce repeatable measurements for:
-
-- a single-node deployment, usually `http://127.0.0.1:5000`
-- the nginx multi-node deployment, usually `http://127.0.0.1:8080`
-- a read-heavy workload
-- a shorten-heavy workload
-- latency, throughput, error rate, and backend-node distribution
-
-### Stage 5 Workloads
-
-The benchmark runner uses two built-in workload mixes:
-
-- `read-heavy`: 70% redirects, 20% metadata lookups, 10% `GET /api/v1/urls`
-- `shorten-heavy`: 85% `POST /api/v1/urls`, 10% metadata lookups, 5% `GET /api/v1/urls`
-
-Before each timed run, the script seeds the target deployment with a configurable number of short URLs so read operations have realistic data to hit.
-
-### Stage 5 Runbook
-
-#### 1. Start the single-node app
-
-```bash
-uv run python run.py
-```
-
-Leave that process running on `http://127.0.0.1:5000`.
-
-#### 2. Start the multi-node Docker stack in a second terminal
-
-```bash
-docker compose up --build -d
-docker compose ps
-```
-
-Leave nginx running on `http://127.0.0.1:8080`.
-
-#### 3. Run the full Stage 5 suite
-
-```bash
-uv run python benchmark.py run-stage5 \
-  --single-url http://127.0.0.1:5000 \
-  --multi-url http://127.0.0.1:8080 \
-  --requests 400 \
-  --concurrency 20 \
-  --seed-count 100
-```
-
-This writes a timestamped results folder under `benchmarks/results/`.
-
-Inside that folder you will get:
-
-- one JSON result file for each deployment/scenario pair
-- `stage5-summary.json` with the combined comparison data
-- `stage5-summary.md` with a report-ready markdown summary
-- `throughput-comparison.svg`, `avg-latency-comparison.svg`, `p95-latency-comparison.svg`, and `backend-distribution.svg`
-- `graphs.html`, which places all generated charts on one page
-
-#### 4. Run one scenario by itself if needed
-
-```bash
-uv run python benchmark.py run-scenario \
-  --base-url http://127.0.0.1:8080 \
-  --deployment multi-node \
-  --scenario read-heavy \
-  --output benchmarks/results/manual-read-heavy.json
-```
-
-#### 5. Rebuild graphs for an existing results folder if needed
-
-```bash
-uv run python benchmark.py make-graphs \
-  --summary-json benchmarks/results/<timestamp>/stage5-summary.json
-```
-
-#### 6. Generate report-ready figures and captions
-
-```bash
-uv run python benchmark.py make-report-figures \
-  --summary-json benchmarks/results/<timestamp>/stage5-summary.json
-```
-
-This creates a `report-figures/` folder with:
-
-- figure-numbered SVG files for throughput, average latency, p95 latency, and backend distribution
-- `report-figure-captions.md` with report-ready figure captions and a suggested results paragraph
-- `report-figures.html` for quick review in a browser
-
-### Controlled Concurrency Study
-
-If you want a one-variable-at-a-time performance experiment, use the controlled concurrency study. This keeps request count, seed count, timeout, and random seed fixed while sweeping only concurrency across both Stage 5 workloads.
-
-```bash
-uv run python benchmark.py run-concurrency-study \
-  --single-url http://127.0.0.1:5000 \
-  --multi-url http://127.0.0.1:8080 \
-  --concurrency-level 4 \
-  --concurrency-level 8 \
-  --concurrency-level 16 \
-  --requests 400 \
-  --seed-count 100
-```
-
-This writes a timestamped results folder under `benchmarks/concurrency/`.
-
-Inside that folder you will get:
-
-- one JSON result file per deployment, workload, and concurrency level
-- `concurrency-study-summary.json` with the combined comparison data
-- `concurrency-study-summary.md` with a report-ready markdown summary
-- `throughput-by-concurrency.svg`
-- `avg-latency-by-concurrency.svg`
-- `p95-latency-by-concurrency.svg`
-- `error-rate-by-concurrency.svg`
-- `graphs.html`
-
-To rebuild the graphs from an existing concurrency-study summary:
-
-```bash
-uv run python benchmark.py make-concurrency-graphs \
-  --summary-json benchmarks/concurrency/<timestamp>/concurrency-study-summary.json
-```
-
-### Easy, Medium, Hard Demo Cases
-
-If you want to present the system as progressively harder cases instead of one full benchmark suite, use the built-in case runner.
-
-Latest measured case results are summarized in [CASE_RESULTS.md](/C:/Users/yasha/cs4675_proj/cs4675_Project/CASE_RESULTS.md).
-
-#### Easy Case
-
-Single-node baseline with one read-heavy benchmark.
-
-```bash
-uv run python benchmark.py run-case \
-  --case easy \
-  --single-url http://127.0.0.1:5000
-```
-
-What it shows:
-
-- the single-node app is healthy
-- the benchmark runner works
-- one simple read-heavy workload against the baseline deployment
-
-What it generates:
-
-- `benchmarks/cases/<timestamp>/easy-case.json`
-- `benchmarks/cases/<timestamp>/easy-case.md`
-- case statistics plus SVG graphs and `graphs.html`
-
-#### Medium Case
-
-Healthy multi-node benchmark covering both read-heavy and shorten-heavy traffic through nginx.
-
-```bash
-uv run python benchmark.py run-case \
-  --case medium \
-  --multi-url http://127.0.0.1:8080
-```
-
-What it shows:
-
-- the nginx deployment is healthy
-- both workload mixes run successfully on the multi-node stack
-- the system handles both read-heavy and shorten-heavy traffic without inducing failure
-
-What it generates:
-
-- `benchmarks/cases/<timestamp>/medium-case.json`
-- `benchmarks/cases/<timestamp>/medium-case.md`
-- case statistics plus SVG graphs and `graphs.html`
-
-#### Hard Case
-
-Stop one backend first, then either run a smaller failover benchmark or use a manual curl-driven demo.
-
-Stop one backend:
-
-```bash
-docker compose stop backend1
-```
-
-Smaller failover benchmark:
-
-```bash
-uv run python benchmark.py run-case \
-  --case hard \
-  --multi-url http://127.0.0.1:8080 \
-  --hard-mode benchmark \
-  --hard-scenario read-heavy
-```
-
-Manual curl runbook output:
-
-```bash
-uv run python benchmark.py run-case \
-  --case hard \
-  --multi-url http://127.0.0.1:8080 \
-  --hard-mode manual \
-  --manual-code <saved-code>
-```
-
-What it shows:
-
-- partial-failure behavior after one backend is stopped
-- nginx failover to the surviving backend
-- either a smaller benchmark run during failure or a presentation-friendly manual runbook with curl commands
-
-What it generates:
-
-- benchmark mode:
-  `benchmarks/cases/<timestamp>/hard-case.json` and `hard-case.md`
-  This contains a smaller failover benchmark summary plus SVG graphs and `graphs.html`.
-- manual mode:
-  `benchmarks/cases/<timestamp>/hard-case.json` and `hard-case.md`
-  This contains a manual runbook and curl commands, not benchmark metrics.
-
-#### Combined Easy / Medium / Hard Graphs
-
-If you already have case JSON files and want one presentation-ready comparison across the benchmark-mode runs, generate a combined graph bundle:
-
-```bash
-uv run python benchmark.py make-case-comparison-graphs \
-  --case-json benchmarks/cases/<easy-timestamp>/easy-case.json \
-  --case-json benchmarks/cases/<medium-timestamp>/medium-case.json \
-  --case-json benchmarks/cases/<hard-timestamp>/hard-case.json
-```
-
-What it generates:
-
-- `benchmarks/cases/combined-<timestamp>/combined-case-summary.json`
-- `throughput.svg`
-- `avg-latency.svg`
-- `p95-latency.svg`
-- `error-rate.svg`
-- `graphs.html`
-
-Notes:
-
-- the medium case contributes two labeled bars: read-heavy and shorten-heavy
-- the hard benchmark is labeled as failover
-- hard manual runbooks can be passed too, but they are skipped from the charts because they do not contain benchmark metrics
-
-If you want graphs, use the full Stage 5 workflow:
-
-```bash
-uv run python benchmark.py run-stage5 --single-url http://127.0.0.1:5000 --multi-url http://127.0.0.1:8080
-uv run python benchmark.py make-graphs --summary-json benchmarks/results/<timestamp>/stage5-summary.json
-```
-
-### Stage 5 Metrics
-
-Each benchmark result includes:
-
-- request count and concurrency
-- throughput in requests per second
-- average, median, and p95 latency in milliseconds
-- success count, error count, and error rate
-- HTTP status-code counts
-- backend-node header counts
-- per-operation breakdowns for create, redirect, details, and list requests
-
-### Stage 5 How To Interpret Results
-
-Use the generated markdown summary to compare:
-
-- single-node throughput versus multi-node throughput
-- average latency and p95 latency for each workload
-- error rate under read-heavy versus shorten-heavy traffic
-- whether nginx distributed requests across both backends during the multi-node runs
-
-Expected tradeoffs to discuss:
-
-- read-heavy traffic may benefit more from the replicated backend layout
-- shorten-heavy traffic may show smaller gains because both backends still share one SQLite file
-- large improvements in throughput with minimal latency regression are a good sign
-- any non-zero error rate or major p95 spike is a signal to inspect nginx logs, backend logs, and SQLite contention
-
-### Known Limitations To Discuss In The Final Report
-
-- SQLite is shared for simplicity, but it is not a true distributed database
-- backend replicas are distributed at the application layer, while persistence is still centralized
-- nginx provides request distribution, but we have not yet added advanced health-check automation or dynamic scaling
+- SQLite is shared for simplicity and is not a true distributed database
+- backend replicas are distributed at the application layer, not the storage layer
+- nginx improves request distribution and failover behavior, but capacity is still bounded by shared persistence
+- the benchmarks measure application-visible behavior and not CPU, memory, or disk utilization
