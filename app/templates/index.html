@@ -1,458 +1,501 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Distributed URL Shortener</title>
-    <style>
-      :root {
-        --paper: #f4efe4;
-        --ink: #1d2a38;
-        --muted: #5f6d7b;
-        --panel: rgba(255, 251, 245, 0.82);
-        --accent: #0f766e;
-        --accent-strong: #0b5b55;
-        --line: rgba(29, 42, 56, 0.14);
-        --warn: #a33b20;
-        --shadow: 0 18px 40px rgba(22, 31, 43, 0.14);
-      }
 
-      * {
-        box-sizing: border-box;
-      }
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Distributed URL Shortener</title>
+  <style>
+    :root {
+      --paper: #f4efe4;
+      --ink: #1d2a38;
+      --muted: #5f6d7b;
+      --panel: rgba(255, 251, 245, 0.82);
+      --accent: #0f766e;
+      --accent-strong: #0b5b55;
+      --line: rgba(29, 42, 56, 0.14);
+      --warn: #a33b20;
+      --shadow: 0 18px 40px rgba(22, 31, 43, 0.14);
+    }
 
-      body {
-        margin: 0;
-        min-height: 100vh;
-        font-family: "Palatino Linotype", "Book Antiqua", Georgia, serif;
-        color: var(--ink);
-        background:
-          radial-gradient(circle at top left, rgba(15, 118, 110, 0.18), transparent 32%),
-          radial-gradient(circle at top right, rgba(217, 119, 6, 0.15), transparent 28%),
-          linear-gradient(180deg, #f8f3e9 0%, var(--paper) 100%);
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Palatino Linotype", "Book Antiqua", Georgia, serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(15, 118, 110, 0.18), transparent 32%),
+        radial-gradient(circle at top right, rgba(217, 119, 6, 0.15), transparent 28%),
+        linear-gradient(180deg, #f8f3e9 0%, var(--paper) 100%);
+    }
+
+    .shell {
+      width: min(1120px, calc(100% - 32px));
+      margin: 32px auto;
+    }
+
+    .hero {
+      display: grid;
+      gap: 20px;
+      grid-template-columns: 1.2fr 0.8fr;
+      align-items: stretch;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+    }
+
+    .hero-copy {
+      padding: 28px;
+    }
+
+    .eyebrow {
+      margin: 0 0 12px;
+      font-size: 0.84rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(2.2rem, 5vw, 4.6rem);
+      line-height: 0.95;
+    }
+
+    .lead {
+      margin: 18px 0 0;
+      max-width: 42rem;
+      color: var(--muted);
+      font-size: 1.08rem;
+      line-height: 1.55;
+    }
+
+    .stat-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      padding: 20px;
+    }
+
+    .stat {
+      padding: 18px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.6);
+      border: 1px solid var(--line);
+    }
+
+    .stat-label {
+      margin: 0 0 6px;
+      color: var(--muted);
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .stat-value {
+      margin: 0;
+      font-size: 1.4rem;
+      word-break: break-word;
+    }
+
+    .content {
+      display: grid;
+      gap: 20px;
+      grid-template-columns: 0.95fr 1.05fr;
+      margin-top: 20px;
+    }
+
+    .card {
+      padding: 24px;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 1.35rem;
+    }
+
+    form {
+      display: grid;
+      gap: 14px;
+    }
+
+    label {
+      display: grid;
+      gap: 8px;
+      font-size: 0.95rem;
+    }
+
+    input {
+      width: 100%;
+      padding: 13px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.82);
+      color: var(--ink);
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      background: var(--accent);
+      color: #f9fffe;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: var(--accent-strong);
+    }
+
+    .ghost {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .message {
+      min-height: 24px;
+      margin: 4px 0 0;
+      color: var(--muted);
+    }
+
+    .message.error {
+      color: var(--warn);
+    }
+
+    .result {
+      margin-top: 18px;
+      padding: 16px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.66);
+    }
+
+    .result[hidden] {
+      display: none;
+    }
+
+    .result a {
+      color: var(--accent-strong);
+    }
+
+    .list-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .list {
+      display: grid;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .entry {
+      padding: 16px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.62);
+    }
+
+    .entry-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: baseline;
+      flex-wrap: wrap;
+    }
+
+    .entry-code {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+
+    .entry-meta,
+    .empty {
+      margin: 8px 0 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .entry a {
+      color: var(--accent-strong);
+      word-break: break-all;
+    }
+
+    .mono {
+      font-family: "SFMono-Regular", "Menlo", "Monaco", "Courier New", monospace;
+    }
+
+    @media (max-width: 900px) {
+
+      .hero,
+      .content {
+        grid-template-columns: 1fr;
       }
 
       .shell {
-        width: min(1120px, calc(100% - 32px));
-        margin: 32px auto;
+        width: min(100% - 20px, 1120px);
+        margin: 20px auto;
       }
+    }
+  </style>
+</head>
 
-      .hero {
-        display: grid;
-        gap: 20px;
-        grid-template-columns: 1.2fr 0.8fr;
-        align-items: stretch;
-      }
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="panel hero-copy">
+        <p class="eyebrow">Distributed Systems Demo</p>
+        <h1>Short links with visible backend behavior.</h1>
+        <p class="lead">
+          Use the existing API through a minimal interface, inspect which backend served the
+          request, and watch stored links accumulate across runs.
+        </p>
+      </div>
+      <div class="panel stat-grid">
+        <article class="stat">
+          <p class="stat-label">Current Node</p>
+          <p id="node-name" class="stat-value mono">Loading...</p>
+        </article>
+        <article class="stat">
+          <p class="stat-label">Database Path</p>
+          <p id="db-path" class="stat-value mono">Loading...</p>
+        </article>
+        <article class="stat">
+          <p class="stat-label">Stored URLs</p>
+          <p id="url-count" class="stat-value mono">0</p>
+        </article>
+        <article class="stat">
+          <p class="stat-label">Health</p>
+          <p class="stat-value">API Connected</p>
+        </article>
+      </div>
+    </section>
 
-      .panel {
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-radius: 24px;
-        box-shadow: var(--shadow);
-        backdrop-filter: blur(12px);
-      }
-
-      .hero-copy {
-        padding: 28px;
-      }
-
-      .eyebrow {
-        margin: 0 0 12px;
-        font-size: 0.84rem;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-        color: var(--accent);
-      }
-
-      h1 {
-        margin: 0;
-        font-size: clamp(2.2rem, 5vw, 4.6rem);
-        line-height: 0.95;
-      }
-
-      .lead {
-        margin: 18px 0 0;
-        max-width: 42rem;
-        color: var(--muted);
-        font-size: 1.08rem;
-        line-height: 1.55;
-      }
-
-      .stat-grid {
-        display: grid;
-        gap: 12px;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        padding: 20px;
-      }
-
-      .stat {
-        padding: 18px;
-        border-radius: 18px;
-        background: rgba(255, 255, 255, 0.6);
-        border: 1px solid var(--line);
-      }
-
-      .stat-label {
-        margin: 0 0 6px;
-        color: var(--muted);
-        font-size: 0.82rem;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-      }
-
-      .stat-value {
-        margin: 0;
-        font-size: 1.4rem;
-        word-break: break-word;
-      }
-
-      .content {
-        display: grid;
-        gap: 20px;
-        grid-template-columns: 0.95fr 1.05fr;
-        margin-top: 20px;
-      }
-
-      .card {
-        padding: 24px;
-      }
-
-      h2 {
-        margin: 0 0 14px;
-        font-size: 1.35rem;
-      }
-
-      form {
-        display: grid;
-        gap: 14px;
-      }
-
-      label {
-        display: grid;
-        gap: 8px;
-        font-size: 0.95rem;
-      }
-
-      input {
-        width: 100%;
-        padding: 13px 14px;
-        border-radius: 14px;
-        border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.82);
-        color: var(--ink);
-        font: inherit;
-      }
-
-      button {
-        border: 0;
-        border-radius: 999px;
-        padding: 12px 18px;
-        background: var(--accent);
-        color: #f9fffe;
-        font: inherit;
-        cursor: pointer;
-      }
-
-      button:hover {
-        background: var(--accent-strong);
-      }
-
-      .ghost {
-        background: transparent;
-        color: var(--ink);
-        border: 1px solid var(--line);
-      }
-
-      .actions {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-      }
-
-      .message {
-        min-height: 24px;
-        margin: 4px 0 0;
-        color: var(--muted);
-      }
-
-      .message.error {
-        color: var(--warn);
-      }
-
-      .result {
-        margin-top: 18px;
-        padding: 16px;
-        border-radius: 18px;
-        border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.66);
-      }
-
-      .result[hidden] {
-        display: none;
-      }
-
-      .result a {
-        color: var(--accent-strong);
-      }
-
-      .list-head {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        align-items: center;
-      }
-
-      .list {
-        display: grid;
-        gap: 12px;
-        margin-top: 18px;
-      }
-
-      .entry {
-        padding: 16px;
-        border-radius: 18px;
-        border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.62);
-      }
-
-      .entry-top {
-        display: flex;
-        justify-content: space-between;
-        gap: 16px;
-        align-items: baseline;
-        flex-wrap: wrap;
-      }
-
-      .entry-code {
-        margin: 0;
-        font-size: 1.1rem;
-      }
-
-      .entry-meta,
-      .empty {
-        margin: 8px 0 0;
-        color: var(--muted);
-        line-height: 1.5;
-      }
-
-      .entry a {
-        color: var(--accent-strong);
-        word-break: break-all;
-      }
-
-      .mono {
-        font-family: "SFMono-Regular", "Menlo", "Monaco", "Courier New", monospace;
-      }
-
-      @media (max-width: 900px) {
-        .hero,
-        .content {
-          grid-template-columns: 1fr;
-        }
-
-        .shell {
-          width: min(100% - 20px, 1120px);
-          margin: 20px auto;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <main class="shell">
-      <section class="hero">
-        <div class="panel hero-copy">
-          <p class="eyebrow">Distributed Systems Demo</p>
-          <h1>Short links with visible backend behavior.</h1>
-          <p class="lead">
-            Use the existing API through a minimal interface, inspect which backend served the
-            request, and watch stored links accumulate across runs.
-          </p>
-        </div>
-        <div class="panel stat-grid">
-          <article class="stat">
-            <p class="stat-label">Current Node</p>
-            <p id="node-name" class="stat-value mono">Loading...</p>
-          </article>
-          <article class="stat">
-            <p class="stat-label">Database Path</p>
-            <p id="db-path" class="stat-value mono">Loading...</p>
-          </article>
-          <article class="stat">
-            <p class="stat-label">Stored URLs</p>
-            <p id="url-count" class="stat-value mono">0</p>
-          </article>
-          <article class="stat">
-            <p class="stat-label">Health</p>
-            <p class="stat-value">API Connected</p>
-          </article>
-        </div>
-      </section>
-
-      <section class="content">
-        <section class="panel card">
-          <h2>Create Short URL</h2>
-          <form id="shorten-form">
-            <label>
-              Original URL
-              <input id="url-input" name="url" type="url" placeholder="https://example.com/docs" required>
-            </label>
-            <label>
-              Expiration (days)
-              <input id="expires-input" name="expires_in_days" type="number" min="0" placeholder="7">
-            </label>
-            <div class="actions">
-              <button type="submit">Shorten URL</button>
-              <button id="refresh-button" class="ghost" type="button">Refresh Data</button>
-            </div>
-            <p id="form-message" class="message"></p>
-          </form>
-
-          <section id="result-card" class="result" hidden>
-            <strong>Latest Result</strong>
-            <p><span class="mono">Code:</span> <span id="result-code" class="mono"></span></p>
-            <p><span class="mono">Short URL:</span> <a id="result-short-url" href="#" target="_blank" rel="noreferrer"></a></p>
-            <p><span class="mono">Expires:</span> <span id="result-expiry" class="mono"></span></p>
-          </section>
-        </section>
-
-        <section class="panel card">
-          <div class="list-head">
-            <h2>Stored URLs</h2>
-            <span id="list-status" class="message">Loading...</span>
+    <section class="content">
+      <section class="panel card">
+        <h2>Create Short URL</h2>
+        <form id="shorten-form">
+          <label>
+            Original URL
+            <input id="url-input" name="url" type="url" placeholder="https://example.com/docs" required>
+          </label>
+          <label>
+            Expiration (days)
+            <input id="expires-input" name="expires_in_days" type="number" min="0" placeholder="7">
+          </label>
+          <div class="actions">
+            <button type="submit">Shorten URL</button>
+            <button id="refresh-button" class="ghost" type="button">Refresh Data</button>
           </div>
-          <div id="url-list" class="list" aria-live="polite"></div>
+          <p id="form-message" class="message"></p>
+        </form>
+
+        <section id="result-card" class="result" hidden>
+          <strong>Latest Result</strong>
+          <p><span class="mono">Code:</span> <span id="result-code" class="mono"></span></p>
+          <p><span class="mono">Short URL:</span> <a id="result-short-url" href="#" target="_blank"
+              rel="noreferrer"></a></p>
+          <p><span class="mono">Expires:</span> <span id="result-expiry" class="mono"></span></p>
         </section>
       </section>
-    </main>
 
-    <script>
-      const nodeName = document.getElementById("node-name");
-      const dbPath = document.getElementById("db-path");
-      const urlCount = document.getElementById("url-count");
-      const listStatus = document.getElementById("list-status");
-      const urlList = document.getElementById("url-list");
-      const shortenForm = document.getElementById("shorten-form");
-      const urlInput = document.getElementById("url-input");
-      const expiresInput = document.getElementById("expires-input");
-      const formMessage = document.getElementById("form-message");
-      const refreshButton = document.getElementById("refresh-button");
-      const resultCard = document.getElementById("result-card");
-      const resultCode = document.getElementById("result-code");
-      const resultShortUrl = document.getElementById("result-short-url");
-      const resultExpiry = document.getElementById("result-expiry");
+      <section class="panel card">
+        <div class="list-head">
+          <h2>Stored URLs</h2>
+          <span id="list-status" class="message">Loading...</span>
+        </div>
+        <div id="url-list" class="list" aria-live="polite"></div>
+      </section>
+    </section>
+  </main>
 
-      function formatDate(value) {
-        if (!value) return "Never";
-        return new Date(value).toLocaleString();
+  <script>
+    const nodeName = document.getElementById("node-name");
+    const dbPath = document.getElementById("db-path");
+    const urlCount = document.getElementById("url-count");
+    const listStatus = document.getElementById("list-status");
+    const urlList = document.getElementById("url-list");
+    const shortenForm = document.getElementById("shorten-form");
+    const urlInput = document.getElementById("url-input");
+    const expiresInput = document.getElementById("expires-input");
+    const formMessage = document.getElementById("form-message");
+    const refreshButton = document.getElementById("refresh-button");
+    const resultCard = document.getElementById("result-card");
+    const resultCode = document.getElementById("result-code");
+    const resultShortUrl = document.getElementById("result-short-url");
+    const resultExpiry = document.getElementById("result-expiry");
+
+    function formatDate(value) {
+      if (value === null || value === undefined || value === "") return "Never";
+
+      // Support unix timestamps and string timestamps from SQLite/Python.
+      if (typeof value === "number") {
+        const fromNumber = new Date(value < 1e12 ? value * 1000 : value);
+        return Number.isNaN(fromNumber.getTime()) ? "Never" : fromNumber.toLocaleString();
       }
 
-      function setFormMessage(message, isError = false) {
-        formMessage.textContent = message;
-        formMessage.classList.toggle("error", isError);
+      const raw = String(value).trim();
+      if (!raw) return "Never";
+
+      let parsed = new Date(raw);
+      if (Number.isNaN(parsed.getTime())) {
+        // Normalize "YYYY-MM-DD HH:MM:SS[.ffffff]" to ISO-like format.
+        const sqliteLike = raw.replace(" ", "T").replace(/\.(\d{3})\d+$/, ".$1");
+        parsed = new Date(sqliteLike);
       }
 
-      function renderUrls(mappings) {
-        urlCount.textContent = String(mappings.length);
-        urlList.innerHTML = "";
+      return Number.isNaN(parsed.getTime()) ? "Never" : parsed.toLocaleString();
+    }
 
-        if (!mappings.length) {
-          urlList.innerHTML = '<p class="empty">No short URLs yet. Create one from the panel on the left.</p>';
-          return;
-        }
+    function setFormMessage(message, isError = false) {
+      formMessage.textContent = message;
+      formMessage.classList.toggle("error", isError);
+    }
 
-        for (const mapping of mappings) {
-          const entry = document.createElement("article");
-          entry.className = "entry";
-          entry.innerHTML = `
-            <div class="entry-top">
-              <p class="entry-code mono">${mapping.code}</p>
-              <a href="${mapping.short_url}" target="_blank" rel="noreferrer">${mapping.short_url}</a>
-            </div>
-            <p class="entry-meta"><strong>Original:</strong> <span class="mono">${mapping.long_url}</span></p>
-            <p class="entry-meta">
-              Clicks: <span class="mono">${mapping.click_count}</span>
-              | Expires: <span class="mono">${formatDate(mapping.expires_at)}</span>
-              | Last Accessed: <span class="mono">${formatDate(mapping.last_accessed_at)}</span>
-            </p>
-          `;
-          urlList.appendChild(entry);
-        }
+    function renderUrls(mappings) {
+      urlCount.textContent = String(mappings.length);
+      urlList.innerHTML = "";
+
+      if (!mappings.length) {
+        const empty = document.createElement("p");
+        empty.className = "empty";
+        empty.textContent = "No short URLs yet. Create one from the panel on the left.";
+        urlList.appendChild(empty);
+        return;
       }
 
-      async function refreshNodeInfo() {
-        const response = await fetch("/api/v1/node");
+      for (const mapping of mappings) {
+        const entry = document.createElement("article");
+        entry.className = "entry";
+
+        const top = document.createElement("div");
+        top.className = "entry-top";
+
+        const code = document.createElement("p");
+        code.className = "entry-code mono";
+        code.textContent = mapping.code;
+
+        const shortLink = document.createElement("a");
+        shortLink.href = mapping.short_url;
+        shortLink.target = "_blank";
+        shortLink.rel = "noreferrer";
+        shortLink.textContent = mapping.short_url;
+
+        top.appendChild(code);
+        top.appendChild(shortLink);
+
+        const original = document.createElement("p");
+        original.className = "entry-meta";
+        original.innerHTML = '<strong>Original:</strong> <span class="mono"></span>';
+        original.querySelector(".mono").textContent = mapping.long_url;
+
+        const meta = document.createElement("p");
+        meta.className = "entry-meta";
+        meta.textContent = `Clicks: ${mapping.click_count} | Expires: ${formatDate(mapping.expires_at)} | Last Accessed: ${formatDate(mapping.last_accessed_at)}`;
+
+        entry.appendChild(top);
+        entry.appendChild(original);
+        entry.appendChild(meta);
+        urlList.appendChild(entry);
+      }
+    }
+
+    async function refreshNodeInfo() {
+      const response = await fetch("/api/v1/node");
+      if (!response.ok) {
+        throw new Error("Unable to fetch node info.");
+      }
+
+      const payload = await response.json();
+      nodeName.textContent = payload.instance_name;
+      dbPath.textContent = payload.database_path;
+    }
+
+    async function refreshUrls() {
+      listStatus.textContent = "Refreshing...";
+      const response = await fetch("/api/v1/urls");
+      if (!response.ok) {
+        throw new Error("Unable to fetch URLs.");
+      }
+
+      const payload = await response.json();
+      renderUrls(payload);
+      listStatus.classList.remove("error");
+      listStatus.textContent = "Up to date";
+    }
+
+    async function refreshDashboard() {
+      try {
+        await Promise.all([refreshNodeInfo(), refreshUrls()]);
+      } catch (error) {
+        listStatus.textContent = error.message;
+        listStatus.classList.add("error");
+      }
+    }
+
+    shortenForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setFormMessage("Creating short URL...");
+
+      const expiresRaw = expiresInput.value.trim();
+      const payload = { url: urlInput.value.trim() };
+      if (expiresRaw) {
+        payload.expires_in_days = Number(expiresRaw);
+      }
+
+      try {
+        const response = await fetch("/api/v1/urls", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const result = await response.json();
+
         if (!response.ok) {
-          throw new Error("Unable to fetch node info.");
+          throw new Error(result.error || "Request failed.");
         }
 
-        const payload = await response.json();
-        nodeName.textContent = payload.instance_name;
-        dbPath.textContent = payload.database_path;
+        resultCard.hidden = false;
+        resultCode.textContent = result.code;
+        resultShortUrl.textContent = result.short_url;
+        resultShortUrl.href = result.short_url;
+        resultExpiry.textContent = formatDate(result.expires_at);
+        urlInput.value = "";
+        expiresInput.value = "";
+        setFormMessage("Short URL created.");
+        await refreshDashboard();
+      } catch (error) {
+        setFormMessage(error.message, true);
       }
+    });
 
-      async function refreshUrls() {
-        listStatus.textContent = "Refreshing...";
-        const response = await fetch("/api/v1/urls");
-        if (!response.ok) {
-          throw new Error("Unable to fetch URLs.");
-        }
-
-        const payload = await response.json();
-        renderUrls(payload);
-        listStatus.textContent = "Up to date";
-      }
-
-      async function refreshDashboard() {
-        try {
-          await Promise.all([refreshNodeInfo(), refreshUrls()]);
-        } catch (error) {
-          listStatus.textContent = error.message;
-          listStatus.classList.add("error");
-        }
-      }
-
-      shortenForm.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        setFormMessage("Creating short URL...");
-
-        const expiresRaw = expiresInput.value.trim();
-        const payload = { url: urlInput.value.trim() };
-        if (expiresRaw) {
-          payload.expires_in_days = Number(expiresRaw);
-        }
-
-        try {
-          const response = await fetch("/api/v1/urls", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          const result = await response.json();
-
-          if (!response.ok) {
-            throw new Error(result.error || "Request failed.");
-          }
-
-          resultCard.hidden = false;
-          resultCode.textContent = result.code;
-          resultShortUrl.textContent = result.short_url;
-          resultShortUrl.href = result.short_url;
-          resultExpiry.textContent = formatDate(result.expires_at);
-          urlInput.value = "";
-          expiresInput.value = "";
-          setFormMessage("Short URL created.");
-          await refreshDashboard();
-        } catch (error) {
-          setFormMessage(error.message, true);
-        }
-      });
-
-      refreshButton.addEventListener("click", () => {
-        listStatus.classList.remove("error");
-        refreshDashboard();
-      });
-
+    refreshButton.addEventListener("click", () => {
+      listStatus.classList.remove("error");
       refreshDashboard();
-    </script>
-  </body>
+    });
+
+    refreshDashboard();
+  </script>
+</body>
+
 </html>

@@ -9,12 +9,14 @@ ENV PYTHONUNBUFFERED=1
 ENV UV_LINK_MODE=copy
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --no-install-project
 
 ENV PATH="/app/.venv/bin:$PATH"
 
 COPY app ./app
 COPY run.py .
+COPY print_db.py .
+COPY benchmark.py .
 
 RUN mkdir -p /app/data
 

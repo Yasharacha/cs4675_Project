@@ -74,17 +74,20 @@ class UrlShortenerService:
 
     def serialize(self, mapping: UrlMapping) -> dict[str, object]:
         payload = asdict(mapping)
-        payload["created_at"] = mapping.created_at.isoformat() + "Z"
+        payload["created_at"] = self._to_utc_z(mapping.created_at)
         payload["expires_at"] = (
-            mapping.expires_at.isoformat() + "Z" if mapping.expires_at else None
+            self._to_utc_z(mapping.expires_at) if mapping.expires_at else None
         )
         payload["last_accessed_at"] = (
-            mapping.last_accessed_at.isoformat() + "Z"
+            self._to_utc_z(mapping.last_accessed_at)
             if mapping.last_accessed_at
             else None
         )
         payload["is_expired"] = mapping.is_expired
         return payload
+
+    def _to_utc_z(self, value: datetime) -> str:
+        return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
     def _validate_url(self, url: str) -> str:
         parsed = urlparse(url)
