@@ -67,6 +67,49 @@ def test_create_short_url_and_redirect_updates_analytics(tmp_path):
     assert details_payload["last_accessed_at"] is not None
 
 
+def test_create_short_url_with_custom_phrase(tmp_path):
+    client = make_client(tmp_path)
+
+    response = client.post(
+        "/api/v1/urls",
+        json={"url": "https://example.com/custom", "custom_code": "my_custom_path"},
+    )
+    payload = response.get_json()
+
+    assert response.status_code == 201
+    assert payload["code"] == "my_custom_path"
+    assert payload["short_url"].endswith("/my_custom_path")
+
+
+def test_create_short_url_with_invalid_custom_phrase_rejected(tmp_path):
+    client = make_client(tmp_path)
+
+    response = client.post(
+        "/api/v1/urls",
+        json={"url": "https://example.com/custom", "custom_code": "bad phrase"},
+    )
+
+    assert response.status_code == 400
+    assert "letters, numbers" in response.get_json()["error"]
+
+
+def test_create_short_url_with_taken_custom_phrase_returns_conflict(tmp_path):
+    client = make_client(tmp_path)
+
+    first = client.post(
+        "/api/v1/urls",
+        json={"url": "https://example.com/one", "custom_code": "shared-code"},
+    )
+    second = client.post(
+        "/api/v1/urls",
+        json={"url": "https://example.com/two", "custom_code": "shared-code"},
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 409
+    assert "already in use" in second.get_json()["error"]
+
+
 def test_list_urls_returns_all_saved_mappings(tmp_path):
     client = make_client(tmp_path)
 

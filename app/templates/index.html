@@ -300,6 +300,11 @@
             <input id="url-input" name="url" type="url" placeholder="https://example.com/docs" required>
           </label>
           <label>
+            Custom short URL (optional)
+            <input id="custom-code-input" name="custom_code" type="text" minlength="3" maxlength="32"
+              pattern="[A-Za-z0-9_-]+" placeholder="my-short-code">
+          </label>
+          <label>
             Expiration (days)
             <input id="expires-input" name="expires_in_days" type="number" min="0" placeholder="7">
           </label>
@@ -337,6 +342,7 @@
     const urlList = document.getElementById("url-list");
     const shortenForm = document.getElementById("shorten-form");
     const urlInput = document.getElementById("url-input");
+    const customCodeInput = document.getElementById("custom-code-input");
     const expiresInput = document.getElementById("expires-input");
     const formMessage = document.getElementById("form-message");
     const refreshButton = document.getElementById("refresh-button");
@@ -458,7 +464,11 @@
       setFormMessage("Creating short URL...");
 
       const expiresRaw = expiresInput.value.trim();
+      const customCodeRaw = customCodeInput.value.trim();
       const payload = { url: urlInput.value.trim() };
+      if (customCodeRaw) {
+        payload.custom_code = customCodeRaw;
+      }
       if (expiresRaw) {
         payload.expires_in_days = Number(expiresRaw);
       }
@@ -481,6 +491,7 @@
         resultShortUrl.href = result.short_url;
         resultExpiry.textContent = formatDate(result.expires_at);
         urlInput.value = "";
+        customCodeInput.value = "";
         expiresInput.value = "";
         setFormMessage("Short URL created.");
         await refreshDashboard();
