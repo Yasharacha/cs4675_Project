@@ -32,6 +32,8 @@ The local app runs at:
 http://127.0.0.1:5000
 ```
 
+The web interface is available at `/` or `/ui`.
+
 ## Run With Docker
 
 Start the distributed version:
@@ -64,6 +66,7 @@ curl -X POST http://127.0.0.1:5000/api/v1/urls \
 
 Useful endpoints:
 
+- `GET /` or `GET /ui` opens the web interface
 - `GET /<code>` redirects to the original URL
 - `GET /api/v1/urls/<code>` returns metadata for a short code
 - `GET /api/v1/urls` lists saved URLs
