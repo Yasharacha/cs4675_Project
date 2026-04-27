@@ -229,21 +229,3 @@ The final benchmark results support these conclusions:
 - the hard scenario showed continued availability when one backend was removed
 
 These outcomes are consistent with the architecture: the application layer is replicated, but persistence is still shared.
-
-## Key Submission Artifacts
-
-For the final submission, the most important evidence folders are:
-
-- [benchmarks/results/20260415-133202](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/results/20260415-133202)
-- [benchmarks/concurrency/20260417-152237](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/concurrency/20260417-152237)
-- [benchmarks/cases/easy-20260416-145610](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/cases/easy-20260416-145610)
-- [benchmarks/cases/medium-20260416-145610](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/cases/medium-20260416-145610)
-- [benchmarks/cases/hard-20260416-145733](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/cases/hard-20260416-145733)
-- [benchmarks/cases/combined-20260416-152033](/C:/Users/yasha/CS4675_proj/cs4675_Project/benchmarks/cases/combined-20260416-152033)
-
-## Limitations
-
-- SQLite is shared for simplicity and is not a true distributed database
-- backend replicas are distributed at the application layer, not the storage layer
-- nginx improves request distribution and failover behavior, but capacity is still bounded by shared persistence
-- the benchmarks measure application-visible behavior and not CPU, memory, or disk utilization
